@@ -4,7 +4,7 @@ package object cont {
 
   type Cont[R, B, A] = (A => B) => R
 
-  def pure[S, A](a: A): Cont[S, S, A] = k => k(a)
+  def pure[S, A](a: A): Cont[S, S, A] = _ (a)
 
   def reset[R, A](c: Cont[R, A, A]): R = c(identity)
 
