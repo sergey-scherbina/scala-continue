@@ -1,5 +1,9 @@
 package monad.cont
 
+import java.nio.ByteBuffer
+import java.nio.channels.{AsynchronousFileChannel, CompletionHandler}
+import java.nio.file.Paths
+
 import org.scalatest.FunSuite
 
 class ContTest extends FunSuite {
@@ -124,6 +128,50 @@ class ContTest extends FunSuite {
 
     println()
     println(f4(1)(2)(3)(4))
+  }
+
+  test("monad reflection") {
+    val v: List[Int] = reify(for {
+      x <- reflect(List(1, 2, 3))
+      y <- reflect(List(1, 2, 3))
+    } yield x + y)
+
+    println(v)
+  }
+
+  test("file") {
+
+    type IOResult[A] = Throwable Either A
+    type Chunk[A] = (Long, IOResult[(Int, A)])
+
+    def completionHandler[A](f: A => IOResult[Int] => Unit) =
+      new CompletionHandler[Integer, A] {
+        override def completed(r: Integer, a: A): Unit = f(a)(Right(r))
+
+        override def failed(exc: Throwable, a: A): Unit = f(a)(Left(exc))
+      }
+
+    def read(ch: AsynchronousFileChannel, p: Long, b: ByteBuffer) =
+      shift((f: Chunk[ByteBuffer] => Unit) => ch.read(b, p, b,
+        completionHandler[ByteBuffer](b => r => f((p, r.map((_, b)))))))
+
+    def readAll(ch: AsynchronousFileChannel, p: Long, z: Int): Cont[Unit, Unit, Stream[Chunk[ByteBuffer]]] = {
+      println(p)
+      if (p >= ch.size()) pure(Stream.empty) else
+        for {x <- read(ch, p, ByteBuffer.allocate(z))
+             y <- readAll(ch, p + z, z)
+        } yield x #:: y
+    }
+
+    val chan = AsynchronousFileChannel
+      .open(Paths.get("src/test/resources/hello.txt"))
+
+    reset(for (x <- readAll(chan, 0, 1)) yield {
+      x.foreach(println)
+    })
+
+    println("exit")
+
   }
 
 }

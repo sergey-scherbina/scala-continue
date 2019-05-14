@@ -30,6 +30,10 @@ package object cont {
 
   def channel[A, B]: Cont[B => B @@ A, B @@ A, A] = take[B, B @@ A] >>= suspend
 
+  def reflect[M[_] : Monad, A](m: M[A]): Cont[M[A], M[A], A] = shift(Monad[M].flatMap(m))
+
+  def reify[M[_] : Monad, A](e: Cont[M[A], M[A], A]): M[A] = e(Monad[M].pure)
+
   case class @@[A, B](get: A)(put: B => A @@ B) {
     def apply(): A = get
 
@@ -42,7 +46,7 @@ package object cont {
     def putAll(b: B): Stream[A] = @@(_ => b)
   }
 
-  object ContIxMonad extends IxMonad[Cont] {
+  object ContIndexedMonad extends IndexedMonad[Cont] {
     override def pure[S, A](a: A): Cont[S, S, A] = _ (a)
 
     override def bind[S1, S2, S3, A, B](m: Cont[S1, S2, A])(
@@ -50,13 +54,13 @@ package object cont {
   }
 
   implicit class ContMonad[R1, R2, A](val c: Cont[R1, R2, A]) extends AnyVal {
-    def map[B](f: A => B): Cont[R1, R2, B] = ContIxMonad.map(c)(f)
+    def map[B](f: A => B): Cont[R1, R2, B] = ContIndexedMonad.map(c)(f)
 
-    def flatMap[R3, B](f: A => Cont[R2, R3, B]): Cont[R1, R3, B] = ContIxMonad.bind(c)(f)
+    def flatMap[R3, B](f: A => Cont[R2, R3, B]): Cont[R1, R3, B] = ContIndexedMonad.bind(c)(f)
 
-    def >>=[R3, B](f: A => Cont[R2, R3, B]): Cont[R1, R3, B] = ContIxMonad.bind(c)(f)
+    def >>=[R3, B](f: A => Cont[R2, R3, B]): Cont[R1, R3, B] = ContIndexedMonad.bind(c)(f)
 
-    def withFilter(a: A => Boolean): ContMonad[R1, R2, A] = this
+    def withFilter(f: A => Boolean): ContMonad[R1, R2, A] = this
   }
 
 }
