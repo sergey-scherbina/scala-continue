@@ -26,24 +26,24 @@ package object cont {
 
   def unfold[A](a: A)(f: A => A): Stream[A] = gen(f)(a)
 
-  def suspend[A, B](b: B): Cont[B @@ A, B @@ A, A] = shift(@@(b)(_))
+  def suspend[A, B](b: B): Cont[B << A, B << A, A] = shift(<<(b, _))
 
-  def channel[A, B]: Cont[B => B @@ A, B @@ A, A] = take[B, B @@ A] >>= suspend
+  def channel[A, B]: Cont[B => B << A, B << A, A] = take[B, B << A] >>= suspend
 
   def reflect[M[_] : Monad, A](m: M[A]): Cont[M[A], M[A], A] = shift(Monad[M].flatMap(m))
 
   def reify[M[_] : Monad, A](e: Cont[M[A], M[A], A]): M[A] = e(Monad[M].pure)
 
-  case class @@[A, B](get: A)(put: B => A @@ B) {
+  case class <<[A, B](get: A, put: B => A << B) {
     def apply(): A = get
 
-    def apply(b: B): A @@ B = put(b)
+    def apply(b: B): A << B = put(b)
 
-    def @@(f: A => B): Stream[A] = get #:: (put(f(get)) @@ f)
+    def <<(f: A => B): Stream[A] = get #:: (put(f(get)) << f)
 
-    def toStream[C >: A <: B]: Stream[C] = @@(identity[C])
+    def toStream[C >: A <: B]: Stream[C] = <<(identity[C])
 
-    def putAll(b: B): Stream[A] = @@(_ => b)
+    def forAll(b: B): Stream[A] = <<(_ => b)
   }
 
   object ContIndexedMonad extends IndexedMonad[Cont] {

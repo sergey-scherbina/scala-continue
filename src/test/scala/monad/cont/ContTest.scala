@@ -1,7 +1,8 @@
 package monad.cont
 
-import java.nio.ByteBuffer
+import java.nio.{ByteBuffer, CharBuffer}
 import java.nio.channels.{AsynchronousFileChannel, CompletionHandler}
+import java.nio.charset.Charset
 import java.nio.file.Paths
 
 import org.scalatest.FunSuite
@@ -10,9 +11,9 @@ class ContTest extends FunSuite {
 
   test("Fib") {
     def fib() = loop(for {
-      (x, y) <- take[(Int, Int), Int @@ Unit]
+      (x, y) <- take[(Int, Int), Int << Unit]
       _ <- suspend[Unit, Int](x)
-    } yield (y, x + y))(1, 1) putAll()
+    } yield (y, x + y))(1, 1) forAll()
 
     println(fib().take(10).toList)
     println()
@@ -110,7 +111,7 @@ class ContTest extends FunSuite {
   }
 
   test("channel") {
-    val f4: String => String @@ Int = loop(for {
+    val f4: String => String << Int = loop(for {
       x <- channel[Int, String]
       _ = println("x:" + x)
     } yield x.toString)
@@ -120,7 +121,7 @@ class ContTest extends FunSuite {
 
   test("suspend") {
     def f4 = loop(for {
-      x <- take[Int, String @@ Int]
+      x <- take[Int, String << Int]
       _ = println("x = " + x)
       y <- suspend[Int, String](s"[$x]")
       _ = println("y = " + y)
@@ -144,7 +145,7 @@ class ContTest extends FunSuite {
     type IOResult[A] = Throwable Either A
     type Chunk[A] = (Long, IOResult[(Int, A)])
 
-    def completionHandler[A](f: A => IOResult[Int] => Unit) =
+    def handler[A](f: A => IOResult[Int] => Unit) =
       new CompletionHandler[Integer, A] {
         override def completed(r: Integer, a: A): Unit = f(a)(Right(r))
 
@@ -153,22 +154,25 @@ class ContTest extends FunSuite {
 
     def read(ch: AsynchronousFileChannel, p: Long, b: ByteBuffer) =
       shift((f: Chunk[ByteBuffer] => Unit) => ch.read(b, p, b,
-        completionHandler[ByteBuffer](b => r => f((p, r.map((_, b)))))))
+        handler[ByteBuffer](b => r => f((p, r.map((_,
+          b.flip().asInstanceOf[ByteBuffer])))))))
 
-    def readAll(ch: AsynchronousFileChannel, p: Long, z: Int): Cont[Unit, Unit, Stream[Chunk[ByteBuffer]]] = {
-      println(p)
+    def readStream(ch: AsynchronousFileChannel, p: Long,
+                   z: Int): Cont[Unit, Unit, Stream[Chunk[ByteBuffer]]] =
       if (p >= ch.size()) pure(Stream.empty) else
         for {x <- read(ch, p, ByteBuffer.allocate(z))
-             y <- readAll(ch, p + z, z)
+             y <- readStream(ch, p + z, z)
         } yield x #:: y
+
+    def decode(x: Chunk[ByteBuffer]): Chunk[String] = (x._1, x._2.map(y =>
+      (y._1, Charset.defaultCharset().decode(y._2).toString)))
+
+    val chan = AsynchronousFileChannel.open(Paths.get("src/test/resources/hello.txt"))
+
+    reset {
+      for (x <- readStream(chan, 0, 7)) yield
+        x.map(decode).foreach(println)
     }
-
-    val chan = AsynchronousFileChannel
-      .open(Paths.get("src/test/resources/hello.txt"))
-
-    reset(for (x <- readAll(chan, 0, 1)) yield {
-      x.foreach(println)
-    })
 
     println("exit")
 
