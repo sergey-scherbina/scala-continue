@@ -14,6 +14,8 @@ package object cont {
 
   def loop[A, B](f: Cont[A => B, B, A]): A => B = f(loop(f))(_)
 
+  def stop[A, B](a: A): Cont[A, A, B] = shift(_ => a)
+
   def put[A](a: A): Cont[Stream[A], Stream[A], A] = shift(a #:: _ (a))
 
   def pipe[A]: Cont[A => Stream[A], Stream[A], A] = take[A, Stream[A]] >>= put

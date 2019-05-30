@@ -205,7 +205,7 @@ class ContTest extends FunSuite {
 
     val chan = AsynchronousFileChannel
       .open(Paths.get("src/test/resources/hello.txt"))
-
+    
     import concurrent.ExecutionContext.Implicits._
     for {
       x <- readChunk(chan, 0, ByteBuffer.allocate(10))
@@ -218,14 +218,6 @@ class ContTest extends FunSuite {
     type IOResult[A] = Throwable Either A
     type IOChunk = (Long, ByteBuffer)
 
-    def decode(x: ByteBuffer): String = Charset.defaultCharset()
-      .decode(x.flip().asInstanceOf[ByteBuffer]).toString
-
-    def chunkNext(c: IOChunk): IOChunk = (c._1 + c._2.limit(),
-      c._2.flip().asInstanceOf[ByteBuffer])
-
-    def stop[A]: Cont[Unit, Unit, A] = shift((_: A => Unit) => ())
-
     def handler[A, B](f: IOResult[A] => B) =
       new CompletionHandler[Integer, A] {
         override def failed(exc: Throwable, a: A): Unit = f(Left(exc))
@@ -234,24 +226,33 @@ class ContTest extends FunSuite {
           if (r > 0) f(Right(a)) else f(Left(new IOException("EOF")))
       }
 
-
     def readChunk[A](ch: AsynchronousFileChannel, c: IOChunk): Cont[Unit, A, IOResult[IOChunk]] =
       shift((f: IOResult[IOChunk] => A) => ch.read(c._2, c._1, c, handler(f)))
 
-    def readFile(ch: AsynchronousFileChannel): Cont[IOResult[IOChunk] => Unit, Unit, IOResult[IOChunk]] =
-      shift(readHandler => loop(for {
-        x <- take[IOResult[IOChunk], Unit]
-        r <- x.fold(_ => stop, readChunk[Unit](ch, _))
+    def chunkNext(c: IOChunk): IOChunk = (c._1 + c._2.limit(),
+      c._2.flip().asInstanceOf[ByteBuffer])
+
+    def readFile(ch: AsynchronousFileChannel) =
+      shift((readHandler: IOResult[IOChunk] => Unit) => loop(for {
+        chunk <- take[IOResult[IOChunk], Unit]
+        r <- chunk.fold(_ => stop(),
+          readChunk[Unit](ch, _))
         _ = readHandler(r)
       } yield r.map(chunkNext)))
 
     val chan = AsynchronousFileChannel
       .open(Paths.get("src/test/resources/hello.txt"))
 
-    loop(for {
+    def decode(x: ByteBuffer): String = Charset.defaultCharset()
+      .decode(x.flip().asInstanceOf[ByteBuffer]).toString
+
+    val f: IOResult[IOChunk] => Unit = loop(for {
       x <- readFile(chan)
-      _ = x.map(_._2).map(decode).foreach(println)
-    } yield x)(Right((0, ByteBuffer.allocate(1))))
+      _ = for (y <- x)
+        println(decode(y._2))
+    } yield x)
+
+    f(Right((0, ByteBuffer.allocate(1))))
 
     println("exit")
 
