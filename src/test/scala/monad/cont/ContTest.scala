@@ -8,17 +8,19 @@ import java.nio.file.Paths
 
 import org.scalatest.FunSuite
 
-import scala.concurrent.Promise
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
 class ContTest extends FunSuite {
 
   test("Fib") {
+
     def fib() = loop(for {
       (x, y) <- take[(Int, Int), Int << Unit]
       _ <- suspend[Unit, Int](x)
-    } yield (y, x + y))(1, 1) forAll()
+    } yield (y, x + y))(1, 1)
 
-    println(fib().take(10).toList)
+    println(fib().forAll().take(10).toList)
     println()
   }
 
@@ -191,10 +193,10 @@ class ContTest extends FunSuite {
 
     def handler[A](f: Throwable Either A => Unit) =
       new CompletionHandler[Integer, A] {
+        override def failed(exc: Throwable, a: A): Unit = f(Left(exc))
+
         override def completed(r: Integer, a: A): Unit = if (r < 0)
           f(Left(new IOException("EOF"))) else f(Right(a))
-
-        override def failed(exc: Throwable, a: A): Unit = f(Left(exc))
       }
 
     def readChunk[A](ch: AsynchronousFileChannel, p: Long, b: ByteBuffer) = {
@@ -203,15 +205,25 @@ class ContTest extends FunSuite {
       pr.future
     }
 
+    def readFile(ch: AsynchronousFileChannel, p: Long, n: Int)(
+      implicit executor: ExecutionContext): Future[Stream[ByteBuffer]] =
+      if (p >= ch.size()) Future.successful(Stream.empty) else for {
+        (x, y) <- readChunk(ch, p, ByteBuffer.allocate(n))
+        z <- readFile(ch, x + y.limit(), n)
+      } yield y #:: z
+
     val chan = AsynchronousFileChannel
       .open(Paths.get("src/test/resources/hello.txt"))
-    
+
     import concurrent.ExecutionContext.Implicits._
-    for {
-      x <- readChunk(chan, 0, ByteBuffer.allocate(10))
-      y <- readChunk(chan, 10, ByteBuffer.allocate(10))
-      _ = println(decode(x._2) + decode(y._2))
-    } yield chan.close()
+
+    val z = for (s <- readFile(chan, 0, 1))
+      yield for (b <- s) println(decode(b))
+
+    Await.result(z, Duration.Inf)
+
+    println("exit")
+
   }
 
   test("asyncIO") {
@@ -235,8 +247,7 @@ class ContTest extends FunSuite {
     def readFile(ch: AsynchronousFileChannel) =
       shift((readHandler: IOResult[IOChunk] => Unit) => loop(for {
         chunk <- take[IOResult[IOChunk], Unit]
-        r <- chunk.fold(_ => stop(),
-          readChunk[Unit](ch, _))
+        r <- chunk.fold(_ => stop(), readChunk[Unit](ch, _))
         _ = readHandler(r)
       } yield r.map(chunkNext)))
 
@@ -249,7 +260,7 @@ class ContTest extends FunSuite {
     val f: IOResult[IOChunk] => Unit = loop(for {
       x <- readFile(chan)
       _ = for (y <- x)
-        println(decode(y._2))
+        println("[" + Thread.currentThread().getName + "] " + decode(y._2))
     } yield x)
 
     f(Right((0, ByteBuffer.allocate(1))))
@@ -257,5 +268,4 @@ class ContTest extends FunSuite {
     println("exit")
 
   }
-
 }

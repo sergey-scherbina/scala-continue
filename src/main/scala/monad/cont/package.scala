@@ -10,7 +10,7 @@ package object cont {
 
   def shift[R, B, A](f: (A => B) => R): Cont[R, B, A] = f(_)
 
-  def take[A, B]: Cont[A => B, B, A] = shift(identity[A => B])
+  def take[A, B]: Cont[A => B, B, A] = shift(identity)
 
   def loop[A, B](f: Cont[A => B, B, A]): A => B = f(loop(f))(_)
 
@@ -62,7 +62,7 @@ package object cont {
 
     def >>=[R3, B](f: A => Cont[R2, R3, B]): Cont[R1, R3, B] = ContIndexedMonad.bind(c)(f)
 
-    def withFilter(f: A => Boolean): ContMonad[R1, R2, A] = this
+    def withFilter(f: A => Boolean): ContMonad[R1, R2, A] = this // TODO
   }
 
 }
