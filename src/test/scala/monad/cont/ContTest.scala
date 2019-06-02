@@ -228,42 +228,49 @@ class ContTest extends FunSuite {
   }
 
   test("asyncIO") {
-    type IOChunk = (Long, ByteBuffer)
 
-    def handler[A, B](f: Try[A] => B) =
+    def handler[A](f: Try[A] => Unit) =
       new CompletionHandler[Integer, A] {
-        override def failed(exc: Throwable, a: A): Unit = f(Left(exc).toTry)
+        override def failed(exc: Throwable, a: A): Unit =
+          f(Left(exc).toTry)
 
         override def completed(r: Integer, a: A): Unit =
-          if (r > 0) f(Right(a).toTry) else f(Left(new IOException("EOF")).toTry)
+          if (r > 0) f(Right(a).toTry)
+          else f(Left(new IOException("EOF")).toTry)
       }
 
-    def readChunk[A](ch: AsynchronousFileChannel, c: IOChunk): Cont[Unit, A, Try[IOChunk]] =
-      shift((f: Try[IOChunk] => A) => ch.read(c._2, c._1, c, handler(f)))
+    type IOChunk = Try[(ByteBuffer, Long)]
 
-    def chunkNext(c: IOChunk): IOChunk = (c._1 + c._2.limit(),
-      c._2.flip().asInstanceOf[ByteBuffer])
+    def read(channel: AsynchronousFileChannel) =
+      shift((k: IOChunk => IOChunk) => loop(for {
+        chunk <- take[IOChunk, Unit]
+        r <- shift((f: IOChunk => Unit) =>
+          chunk.fold[Unit](_ => stop(), c =>
+            channel.read(c._1, c._2, c, handler(f))))
+      } yield k(r)))
 
-    def readFile(ch: AsynchronousFileChannel) =
-      shift((readHandler: Try[IOChunk] => Unit) => loop(for {
-        chunk <- take[Try[IOChunk], Unit]
-        r <- chunk.fold(_ => stop(), readChunk[Unit](ch, _))
-        _ = readHandler(r)
-      } yield r.map(chunkNext)))
+    def nextChunk(c: (ByteBuffer, Long)) =
+      (c._1.flip().asInstanceOf[ByteBuffer],
+        c._2 + c._1.limit())
 
-    val chan = AsynchronousFileChannel
-      .open(Paths.get("src/test/resources/hello.txt"))
+    def readFile(channel: AsynchronousFileChannel) =
+      shift((k: IOChunk => IOChunk) =>
+        reset(for (x <- read(channel))
+          yield k(x).map(nextChunk)))
 
     def decode(x: ByteBuffer): String = Charset.defaultCharset()
       .decode(x.flip().asInstanceOf[ByteBuffer]).toString
 
-    val f: Try[IOChunk] => Unit = loop(for {
+    val chan = AsynchronousFileChannel
+      .open(Paths.get("src/test/resources/hello.txt"))
+
+    reset(for {
       x <- readFile(chan)
       _ = for (y <- x)
-        println(decode(y._2))
-    } yield x)
-
-    f(Right((0L, ByteBuffer.allocate(1))).toTry)
+        println(decode(y._1))
+    } yield x)(
+      Right(ByteBuffer.allocate(1), 0L).toTry
+    )
 
     println("exit")
 
