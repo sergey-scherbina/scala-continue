@@ -249,14 +249,11 @@ class ContTest extends FunSuite {
             channel.read(c._1, c._2, c, handler(f))))
       } yield k(r)))
 
-    def nextChunk(c: (ByteBuffer, Long)) =
-      (c._1.flip().asInstanceOf[ByteBuffer],
-        c._2 + c._1.limit())
-
     def readFile(channel: AsynchronousFileChannel) =
-      shift((k: IOChunk => IOChunk) =>
-        reset(for (x <- read(channel))
-          yield k(x).map(nextChunk)))
+      shift((k: IOChunk => IOChunk) => reset(
+        for (x <- read(channel)) yield k(x).map(c => (
+          c._1.flip().asInstanceOf[ByteBuffer], c._2 + c._1.limit()
+        ))))
 
     def decode(x: ByteBuffer): String = Charset.defaultCharset()
       .decode(x.flip().asInstanceOf[ByteBuffer]).toString
@@ -269,7 +266,8 @@ class ContTest extends FunSuite {
       _ = for (y <- x)
         println(decode(y._1))
     } yield x)(
-      Right(ByteBuffer.allocate(1), 0L).toTry
+      Right(ByteBuffer.allocate(1),
+        0L).toTry
     )
 
     println("exit")
