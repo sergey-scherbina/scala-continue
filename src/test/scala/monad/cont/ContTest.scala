@@ -138,12 +138,20 @@ class ContTest extends FunSuite {
   }
 
   test("monad reflection") {
-    val v: List[Int] = reify(for {
-      x <- reflect(List(1, 2, 3))
-      y <- reflect(List(1, 2, 3))
-    } yield x + y)
+    val v: List[(String, Int)] = reify(for {
+      x <- reflect[List, String, (String, Int)](List("1", "2", "3"))
+      y <- reflect[List, Int, (String, Int)](List(1, 2, 3))
+    } yield (x, y))
 
     println(v)
+
+    val v2: List[(String, Int)] = reify(for {
+      x <- List("1", "2", "3").reflect[(String, Int)]
+      y <- List(1, 2, 3).reflect[(String, Int)]
+    } yield (x, y))
+
+    println(v2)
+
   }
 
   test("file") {

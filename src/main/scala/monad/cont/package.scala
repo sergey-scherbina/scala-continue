@@ -32,9 +32,13 @@ package object cont {
 
   def channel[A, B]: Cont[B => B << A, B << A, A] = take[B, B << A] >>= suspend
 
-  def reflect[M[_] : Monad, A](m: M[A]): Cont[M[A], M[A], A] = shift(Monad[M].flatMap(m))
+  def reflect[M[_] : Monad, A, B](m: M[A]): Cont[M[B], M[B], A] = shift(Monad[M].flatMap(m))
 
-  def reify[M[_] : Monad, A](e: Cont[M[A], M[A], A]): M[A] = e(Monad[M].pure)
+  def reify[M[_] : Monad, A, B](e: Cont[M[B], M[A], A]): M[B] = e(Monad[M].pure)
+
+  implicit class MReflect[M[_] : Monad, A](m: M[A]) {
+    def reflect[B]: Cont[M[B], M[B], A] = shift(Monad[M].flatMap(m))
+  }
 
   case class <<[A, B](get: A, put: B => A << B) {
     def apply(): A = get
