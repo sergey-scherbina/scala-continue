@@ -34,9 +34,9 @@ package object cont {
 
   def reflect[M[_] : Monad, A, B](m: M[A]): Cont[M[B], M[B], A] = shift(Monad[M].flatMap(m))
 
-  def reify[M[_] : Monad, A, B](e: Cont[M[B], M[A], A]): M[B] = e(Monad[M].pure)
+  def reify[M[_] : Monad, A, B](e: Cont[B, M[A], A]): B = e(Monad[M].pure)
 
-  implicit class MReflect[M[_] : Monad, A](m: M[A]) {
+  implicit class Reflect[M[_] : Monad, A](m: M[A]) {
     def reflect[B]: Cont[M[B], M[B], A] = shift(Monad[M].flatMap(m))
   }
 
