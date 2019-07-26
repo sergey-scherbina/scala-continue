@@ -176,7 +176,7 @@ class ContTest extends FunSuite {
       if (p >= ch.size()) pure(Stream.empty) else
         for {x <- read(ch, p, ByteBuffer.allocate(z))
              y <- readStream(ch, p + z, z)
-        } yield x #:: y
+             } yield x #:: y
 
     def decode(x: Chunk[ByteBuffer]): Chunk[String] = (x._1, x._2.map(y =>
       (y._1, Charset.defaultCharset().decode(y._2).toString)))
@@ -281,4 +281,19 @@ class ContTest extends FunSuite {
     println("exit")
 
   }
+
+  test("Alice has a cat.") {
+
+    def alice() =
+      shift((k1: String => String) =>
+        shift((k2: String => String) =>
+          "Alice" + k1(k2("."))))
+
+    val cat = reset(for (x <- reset(for (y <- alice())
+      yield " has " + y)) yield "a cat" + x)
+
+    println(cat)
+
+  }
+
 }
