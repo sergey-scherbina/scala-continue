@@ -83,9 +83,12 @@ class PrefixesTest extends FunSuite {
      */
     def bfs[A](tree: SearchTree[A]): Stream[A] = {
       def loop(node: Stream[Unit => SearchTree[A]]): Stream[A] =
-        if (node.isEmpty) Stream() else node.head(()) match {
-          case Leaf(x) => x #:: loop(node.tail)
-          case Node(b) => loop(b #::: node.tail)
+        node match {
+          case Stream() => Stream()
+          case h #:: t => h() match {
+            case Leaf(x) => x #:: loop(t)
+            case Node(b) => loop(b #::: t)
+          }
         }
 
       loop(Stream(_ => tree))
