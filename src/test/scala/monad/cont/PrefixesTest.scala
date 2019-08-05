@@ -2,6 +2,8 @@ package monad.cont
 
 import org.scalatest.FunSuite
 
+import scala.collection.immutable.Stream.Empty
+
 class PrefixesTest extends FunSuite {
 
   test("append") {
@@ -62,4 +64,92 @@ class PrefixesTest extends FunSuite {
     println(partition(3, List(4, 1, 3, 5, 2, 3)))
   }
 
+  test("search tree") {
+    // http://okmij.org/ftp/continuations/Searches.hs
+    //
+    // data SearchTree a = Leaf a | Node [() -> SearchTree a]
+    sealed trait SearchTree[A]
+    case class Leaf[A](a: A) extends SearchTree[A]
+    case class Node[A](b: Stream[Unit => SearchTree[A]]) extends SearchTree[A]
+    /*
+    bfs :: SearchTree a -> [a]
+    bfs tree = loop [\() -> tree]
+    where
+      loop []    = []
+      loop (h:t) = case h () of
+               Leaf x -> x : loop t
+               Node b -> loop (t ++ b)
+     */
+    def bfs[A](tree: SearchTree[A]): Stream[A] = {
+      def loop(node: Stream[Unit => SearchTree[A]]): Stream[A] = node match {
+        case Stream() => Stream()
+        case h #:: t => h() match {
+          case Leaf(x) => x #:: loop(t)
+          case Node(b) => loop(t ++ b)
+        }
+      }
+
+      loop(Stream(_ => tree))
+    }
+
+    /*
+    -- Non-deterministic choice from a _finite_ list
+    -- This is the only primitive. Everything else is implemented in terms
+    -- of choose
+    choose :: [a] -> Cont (SearchTree w) a
+    choose lst = shift (\k -> return $ Node (map (\x () -> k x) lst))
+
+    -- Failing computation
+    failure :: Cont (SearchTree w) a
+    failure = choose []
+
+    -- How to run non-deterministic computation
+    reify :: Cont (SearchTree a) a -> SearchTree a
+    reify m = runC (fmap Leaf m)
+     */
+    def choose[A, B](as: Stream[A]): Cont[SearchTree[B], SearchTree[B], A] =
+      shift((k: A => SearchTree[B]) => Node(as.map(x => (_: Unit) => k(x))))
+
+    def failure[A, B](): Cont[SearchTree[B], SearchTree[B], A] =
+      choose[A, B](Stream())
+
+    def reify[A](m: Cont[SearchTree[A], SearchTree[A], A]): SearchTree[A] =
+      reset(identity(m).map(Leaf(_)))
+
+    /*
+    ex1 = reify $ do
+      x <- choose [1..10]
+      y <- choose [1..10]
+      z <- choose [1..10]
+      if x*x + y*y == z*z then return (x,y,z) else failure
+     */
+    def ex1(): SearchTree[(Int, Int, Int)] = reify(
+      choose(Stream.from(1).take(10)) >>= (x =>
+        choose(Stream.from(1).take(10)) >>= (y =>
+          choose(Stream.from(1).take(10)) >>= (z =>
+            if (x * x + y * y == z * z)
+              pure((x, y, z)) else failure())))
+    )
+
+    bfs(ex1()).foreach(println)
+
+    println()
+
+    def tripple(x: Int, y: Int, z: Int): Cont[
+      SearchTree[(Int, Int, Int)],
+      SearchTree[(Int, Int, Int)],
+      (Int, Int, Int)
+    ] = if (x * x + y * y == z * z)
+      pure((x, y, z)) else failure()
+
+    def ex2(): SearchTree[(Int, Int, Int)] = reify(for {
+      x <- choose(Stream.from(1).take(10))
+      y <- choose(Stream.from(1).take(10))
+      z <- choose(Stream.from(1).take(10))
+      r <- tripple(x, y, z)
+    } yield r)
+
+    bfs(ex2()).foreach(println)
+
+  }
 }
