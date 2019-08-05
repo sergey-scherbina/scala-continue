@@ -2,6 +2,7 @@ package monad.cont
 
 import org.scalatest.FunSuite
 
+import scala.annotation.tailrec
 import scala.collection.immutable.Stream.Empty
 
 class PrefixesTest extends FunSuite {
@@ -81,13 +82,11 @@ class PrefixesTest extends FunSuite {
                Node b -> loop (t ++ b)
      */
     def bfs[A](tree: SearchTree[A]): Stream[A] = {
-      def loop(node: Stream[Unit => SearchTree[A]]): Stream[A] = node match {
-        case Stream() => Stream()
-        case h #:: t => h() match {
-          case Leaf(x) => x #:: loop(t)
-          case Node(b) => loop(t ++ b)
+      def loop(node: Stream[Unit => SearchTree[A]]): Stream[A] =
+        if (node.isEmpty) Stream() else node.head(()) match {
+          case Leaf(x) => x #:: loop(node.tail)
+          case Node(b) => loop(b #::: node.tail)
         }
-      }
 
       loop(Stream(_ => tree))
     }
@@ -123,33 +122,34 @@ class PrefixesTest extends FunSuite {
       z <- choose [1..10]
       if x*x + y*y == z*z then return (x,y,z) else failure
      */
-    def ex1(): SearchTree[(Int, Int, Int)] = reify(
-      choose(Stream.from(1).take(10)) >>= (x =>
-        choose(Stream.from(1).take(10)) >>= (y =>
-          choose(Stream.from(1).take(10)) >>= (z =>
-            if (x * x + y * y == z * z)
-              pure((x, y, z)) else failure())))
+    def ex1(s: Stream[Int]): SearchTree[(Int, Int, Int)] = reify(
+      choose(s) >>= (x => choose(s) >>= (y => choose(s) >>= (z =>
+        if (x * x + y * y == z * z) pure((x, y, z)) else failure()
+        )))
     )
 
-    bfs(ex1()).foreach(println)
+    bfs(ex1(Stream.from(1).take(10)))
+      .foreach(println)
 
     println()
 
-    def tripple(x: Int, y: Int, z: Int): Cont[
+    def triple(x: Int, y: Int, z: Int): Cont[
       SearchTree[(Int, Int, Int)],
       SearchTree[(Int, Int, Int)],
       (Int, Int, Int)
     ] = if (x * x + y * y == z * z)
       pure((x, y, z)) else failure()
 
-    def ex2(): SearchTree[(Int, Int, Int)] = reify(for {
-      x <- choose(Stream.from(1).take(10))
-      y <- choose(Stream.from(1).take(10))
-      z <- choose(Stream.from(1).take(10))
-      r <- tripple(x, y, z)
-    } yield r)
+    def ex2(s: Stream[Int]): SearchTree[(Int, Int, Int)] =
+      reify(for {
+        x <- choose(s)
+        y <- choose(s)
+        z <- choose(s)
+        r <- triple(x, y, z)
+      } yield r)
 
-    bfs(ex2()).foreach(println)
+    bfs(ex2(Stream.from(1).take(100))).
+      foreach(println)
 
   }
 }
