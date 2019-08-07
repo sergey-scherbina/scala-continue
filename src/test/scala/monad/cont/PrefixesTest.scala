@@ -155,4 +155,108 @@ class PrefixesTest extends FunSuite {
       foreach(println)
 
   }
+
+  test("prefixes2") {
+
+    def firstPrefix1[A](p: A => Boolean, xs: List[A]): List[A] = {
+      def visit(xs: List[A], k: List[A] => List[A]): List[A] =
+        xs match {
+          case List() => List()
+          case x :: xs => {
+            val k1 = (vs: List[A]) => k(x :: vs)
+            if (p(x)) k1(Nil) else visit(xs, k1)
+          }
+        }
+
+      visit(xs, vs => vs)
+    }
+
+    println(firstPrefix1((_: Int) > 2, List(0, 3, 1, 4, 2, 5)))
+
+    def allPrefixes1[A](p: A => Boolean, xs: List[A]): List[List[A]] = {
+      def visit(xs: List[A], k: List[A] => List[A]): List[List[A]] =
+        xs match {
+          case List() => List()
+          case x :: xs => {
+            val k1 = (vs: List[A]) => k(x :: vs)
+            if (p(x)) k1(Nil) :: visit(xs, k1) else visit(xs, k1)
+          }
+        }
+
+      visit(xs, vs => vs)
+    }
+
+    println(allPrefixes1((_: Int) > 2, List(0, 3, 1, 4, 2, 5)))
+
+    def firstPrefix0[A](p: A => Boolean, xs: List[A]): List[A] = {
+      def visit(xs: List[A]): Cont[List[A], List[A], List[A]] =
+        xs match {
+          case List() => shift((k: List[A] => List[A]) => List[A]())
+          case x :: xs =>
+            for {y <- if (p(x))
+              pure[List[A], List[A]](Nil)
+            else visit(xs)} yield x :: y
+        }
+
+      reset(visit(xs))
+    }
+
+    println(firstPrefix0((_: Int) > 2, List(0, 3, 1, 4, 2, 5)))
+
+    def allPrefixes0[A](p: A => Boolean, xs: List[A]): List[List[A]] = {
+      def visit(xs: List[A]): Cont[List[List[A]], List[A], List[A]] =
+        xs match {
+          case List() => shift((k: List[A] => List[A]) => List[List[A]]())
+          case x :: xs =>
+            for {y <- if (p(x))
+              shift((k: List[A] => List[A]) => k(Nil) ::
+                reset(for (y <- visit(xs)) yield k(y)))
+            else visit(xs)} yield x :: y
+        }
+
+      reset(visit(xs))
+    }
+
+    println(allPrefixes0((_: Int) > 2, List(0, 3, 1, 4, 2, 5)))
+
+    def firstPrefix2[A](p: A => Boolean, xs: List[A]): List[A] = {
+      def visit(xs: List[A],
+                k1: (List[A], List[A] => List[A]) => List[A],
+                k2: List[A] => List[A]): List[A] =
+        xs match {
+          case List() => k2(List())
+          case x :: xs => {
+            val k1_ =
+              (vs: List[A], k2_ : List[A] => List[A]) => k1(x :: vs, k2_)
+            if (p(x)) k1_(Nil, k2) else visit(xs, k1_, k2)
+          }
+        }
+
+      visit(xs, (vs, k2) => k2(vs), vs => vs)
+    }
+
+    println(firstPrefix2((_: Int) > 2, List(0, 3, 1, 4, 2, 5)))
+
+    def allPrefixes2[A](p: A => Boolean, xs: List[A]): List[List[A]] = {
+      def visit(xs: List[A],
+                k1: (List[A], List[A] => List[List[A]]) => List[List[A]],
+                k2: List[List[A]] => List[List[A]]): List[List[A]] =
+        xs match {
+          case List() => k2(List())
+          case x :: xs => {
+            val k1_ =
+              (vs: List[A], k2_ : List[A] => List[List[A]]) => k1(x :: vs, k2_)
+            if (p(x))
+              k1_(Nil, vs => visit(xs, k1_, vss => k2(vs :: vss)))
+            else visit(xs, k1_, k2)
+          }
+        }
+
+      visit(xs, (vs, k2) => k2(vs), vs => vs)
+    }
+
+    println(allPrefixes2((_: Int) > 2, List(0, 3, 1, 4, 2, 5)))
+
+  }
+
 }
