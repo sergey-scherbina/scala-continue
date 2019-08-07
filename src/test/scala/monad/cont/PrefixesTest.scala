@@ -2,9 +2,6 @@ package monad.cont
 
 import org.scalatest.FunSuite
 
-import scala.annotation.tailrec
-import scala.collection.immutable.Stream.Empty
-
 class PrefixesTest extends FunSuite {
 
   test("append") {
@@ -157,6 +154,8 @@ class PrefixesTest extends FunSuite {
   }
 
   test("prefixes2") {
+    //https://brics.dk/RS/05/11/BRICS-RS-05-11.pdf
+    // "An Operational Foundation for Delimited Continuations in the CPS Hierarchy"
 
     def firstPrefix1[A](p: A => Boolean, xs: List[A]): List[A] = {
       def visit(xs: List[A], k: List[A] => List[A]): List[A] =
@@ -259,4 +258,108 @@ class PrefixesTest extends FunSuite {
 
   }
 
+  test("prefixes3") {
+    // http://www.ii.uni.wroc.pl/~mabi/papers/biernacka-al-ppdp11.pdf
+    {
+      def walk[A, B, C](xs: List[A]): (List[A] => (B => C) => C) => (List[B] => C) => C =
+        k1 => k2 => xs match {
+          case Nil => k2(List())
+          case (x :: xs) => k1(List(x))(vs =>
+            walk(xs)(vs => k1(x :: vs))(vss => k2(vs :: vss)))
+        }
+
+      def prefixes[A](xs: List[A]): List[List[A]] = walk(xs)(
+        (vs: List[A]) => (k2: List[A] => List[List[A]]) => k2(vs)
+      )(vss => vss)
+
+      println(prefixes(List(1, 2, 3, 4)))
+    }
+    {
+      def shift1[A, B, C, D](f: (A => B) => Cont[C, D, D]): Cont[C, B, A] =
+        shift((k: A => B) => reset(f(k)))
+
+      def reset1[A, B, C](e: Cont[A, B, B]): Cont[C, C, A] = pure(reset(e))
+
+      def walk[A](xs: List[A]): Cont[List[List[A]], List[A], List[A]] = xs match {
+        case Nil => shift1(_ => pure(List[List[A]]()))
+        case x :: xs => shift1(k => for (z <- reset1(
+          for (y <- walk(xs)) yield k(x :: y)))
+          yield k(List(x)) :: z)
+      }
+
+      def prefixes[A](xs: List[A]): List[List[A]] = reset(walk(xs))
+
+      println(prefixes(List(1, 2, 3, 4)))
+    }
+
+    /*
+        {
+          def fail[A, B]: Unit => A => (Unit => B) => B
+          = _ => k1 => k2 => k2()
+
+          def amb[A, B]: (Unit => A => (Unit => B) => B) =>
+            (Unit => A => (Unit => B) => B) =>
+              (A => (Unit => B) => B)
+          = c1 => c2 => k1 => k2 => c1()(k1)(_ => c2()(k1)(k2))
+
+          def walk[A, B]: List[A] => (List[A] => (Unit => B) => B) => (Unit => B) => B = {
+            case Nil => fail(())
+            case (x :: xs) =>
+              amb(_ =>
+                (k1: List[A] => (Unit => List[A]) => List[A]) => k1(x :: List())
+              )(_ =>
+                (k1: List[A] => (Unit => List[A]) => List[A]) => walk(xs)(vs => k1(x :: vs)))
+          }
+
+          def emit[A, B, C, D]: A
+            => (Unit => (Unit => (List[A] => B) => C) => D)
+            => (Unit => (List[A] => B) => C) => D
+          = v => k1 => k2 =>
+            k1()(_ => k3 => k2()(u => k3(v :: u)))
+
+          def collect[A, B, C, D, E, F, G]: (Unit =>
+            (A => (Unit => (List[A] => B) => C) => (List[A] => B) => C)
+              => (Unit => (List[D] => E) => E) => (F => F) => List[List[A]]) => List[List[A]]
+          = c => c()(v => emit(v)(u => k2 => k2(u)))(_ => k3 => k3(Nil))(vs => vs)
+
+          def prefixes[A]: List[A] => List[List[A]] = xs => collect(_ => walk(xs))
+
+        }
+    */
+
+    /*
+        {
+          type Ans1 = Unit
+          type Ans2 = List[List[Int]]
+          type Cont1[A] = Cont[Ans1, Ans1, A]
+          type Cont2[A] = Cont[Cont1[Ans2], Cont1[Ans2], A]
+
+          def shift_1[A](k: (A => Ans1) => Ans1): Cont1[A] = shift(k)
+
+          def reset_1[A](e: Unit => Cont1[A]): Ans1 = reset(e())
+
+          def shift_2[A](k: Cont2[A]) = k
+
+          def reset_2[A](e: Unit => Cont[Ans2, Ans2, A]): Ans2 = reset(e())
+
+          def fail[A](): Cont[Ans1, Ans1, A] = shift_1(k => ())
+
+          def amb[A](c1: Unit => A, c2: Unit => A): Cont[Ans1, Ans1, A] =
+            shift_1 { k =>
+              k(c1());
+              k(c2())
+            }
+
+          def emit(v: Int): Cont[Ans2, Ans2, Ans1] = shift_2((k: Ans1 => Ans2) => v :: k())
+
+          def collect(c: Unit => Int) = reset_2 { _ =>
+            val _ = reset_1(_ => emit(c()))
+            pure(List[Int]())
+            )
+          }
+        }
+    */
+
+
+  }
 }
