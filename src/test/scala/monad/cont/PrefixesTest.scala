@@ -5,7 +5,7 @@ import org.scalatest.FunSuite
 class PrefixesTest extends FunSuite {
 
   test("append") {
-    def append[A](lst: List[A]): Cont[List[A] => List[A], List[A], List[A]] =
+    def append[A](lst: List[A]): Cont[List[A], List[A], List[A] => List[A]] =
       lst match {
         case List() => shift0(identity)
         case a :: rest => append(rest).map(a :: _)
@@ -19,7 +19,7 @@ class PrefixesTest extends FunSuite {
 
   test("prefixes") {
 
-    def w[A](lst: List[A]): Cont[List[List[A]], List[A], List[A]] =
+    def w[A](lst: List[A]): Cont[List[A], List[A], List[List[A]]] =
       lst match {
         case List() => shift0(_ => List())
         case x :: xs => shift0((k: List[A] => List[A]) =>
@@ -40,7 +40,7 @@ class PrefixesTest extends FunSuite {
 
       type C[A] = Cont[A, A, A]
 
-      def mapC[A, B](c: Cont[A, A, A])(f: A => B): Cont[A, A, B] =
+      def mapC[A, B](c: Cont[A, A, A])(f: A => B): Cont[B, A, A] =
         identity(c).map(f)
 
       def part(l: List[T]): C[C[List[T]]] = l match {
@@ -106,13 +106,13 @@ class PrefixesTest extends FunSuite {
     reify :: Cont (SearchTree a) a -> SearchTree a
     reify m = runC (fmap Leaf m)
      */
-    def choose[A, B](as: Stream[A]): Cont[SearchTree[B], SearchTree[B], A] =
+    def choose[A, B](as: Stream[A]): Cont[A, SearchTree[B], SearchTree[B]] =
       shift0((k: A => SearchTree[B]) => Node(as.map(x => (_: Unit) => k(x))))
 
-    def failure[A, B](): Cont[SearchTree[B], SearchTree[B], A] =
+    def failure[A, B](): Cont[A, SearchTree[B], SearchTree[B]] =
       choose[A, B](Stream())
 
-    def reify[A](m: Cont[SearchTree[A], SearchTree[A], A]): SearchTree[A] =
+    def reify[A](m: Cont[A, SearchTree[A], SearchTree[A]]): SearchTree[A] =
       reset0(identity(m).map(Leaf(_)))
 
     /*
@@ -133,12 +133,10 @@ class PrefixesTest extends FunSuite {
 
     println()
 
-    def triple(x: Int, y: Int, z: Int): Cont[
-      SearchTree[(Int, Int, Int)],
-      SearchTree[(Int, Int, Int)],
-      (Int, Int, Int)
-    ] = if (x * x + y * y == z * z)
-      pure((x, y, z)) else failure()
+    def triple(x: Int, y: Int, z: Int): Cont[(Int, Int, Int),
+      SearchTree[(Int, Int, Int)], SearchTree[(Int, Int, Int)]] =
+      if (x * x + y * y == z * z)
+        pure((x, y, z)) else failure()
 
     def ex2(s: Stream[Int]): SearchTree[(Int, Int, Int)] =
       reify(for {
@@ -203,7 +201,7 @@ class PrefixesTest extends FunSuite {
     println(firstPrefix0((_: Int) > 2, List(0, 3, 1, 4, 2, 5)))
 
     def allPrefixes0[A](p: A => Boolean, xs: List[A]): List[List[A]] = {
-      def visit(xs: List[A]): Cont[List[List[A]], List[A], List[A]] =
+      def visit(xs: List[A]): Cont[List[A], List[A], List[List[A]]] =
         xs match {
           case List() => shift0((k: List[A] => List[A]) => List[List[A]]())
           case x :: xs =>
@@ -275,7 +273,7 @@ class PrefixesTest extends FunSuite {
       println(prefixes(List(1, 2, 3, 4)))
     }
     {
-      def walk[A](xs: List[A]): Cont[List[List[A]], List[A], List[A]] = xs match {
+      def walk[A](xs: List[A]): Cont[List[A], List[A], List[List[A]]] = xs match {
         case Nil => shift1(_ => pure(List[List[A]]()))
         case x :: xs => shift1((k: List[A] => List[A]) => for (z <- reset1(
           for (y <- walk(xs)) yield k(x :: y)))
@@ -288,10 +286,10 @@ class PrefixesTest extends FunSuite {
     }
 
     {
-      def fail[A, B](): Cont[Unit, B, A] = shift1(_ => pure(()))
+      def fail[A, B](): Cont[A, B, Unit] = shift1(_ => pure(()))
 
-      def amb[A, B, C](c1: => A, c2: => A): Cont[Unit, Cont[C, B, B], A] =
-        shift1((k: A => Cont[C, B, B]) => for {
+      def amb[A, B, C](c1: => A, c2: => A): Cont[A, Cont[B, B, C], Unit] =
+        shift1((k: A => Cont[B, B, C]) => for {
           _ <- reset1(k(c1))
           _ <- reset1(k(c2))
         } yield ())
@@ -312,19 +310,19 @@ class PrefixesTest extends FunSuite {
       //      def shift2[A, B, C, D, E, F] =
       //        (k: A => B) => lift(lift(shift(k)))
 
-      def shift2[A, B, C, D, E](m: (A => B) => C): Cont[Cont[C, D, E], Cont[B, D, E], A] =
+      def shift2[A, B, C, D, E](m: (A => B) => C): Cont[A, Cont[D, E, B], Cont[D, E, C]] =
         shift0(m).flatMap[D, E]
 
-      def reset2[B, C, D, E](c: Cont[Cont[C, D, D], Cont[B, D, E], Cont[B, D, E]]) =
+      def reset2[A, B, C, D](c: Cont[Cont[A, B, C], Cont[A, B, C], Cont[C, C, D]]) =
         reset0(reset0(c))
 
-      def fail2[A, B, C, D](): Cont[Cont[Unit, D, C], Cont[B, D, C], A] =
+      def fail2[A, B, C, D](): Cont[A, Cont[C, D, B], Cont[C, D, Unit]] =
         shift2((_: A => B) => ())
 
-      def emit[A, B, C](v: A): Cont[Cont[List[A], B, C], Cont[List[A], B, C], Unit] =
+      def emit[A, B, C](v: A): Cont[Unit, Cont[C, B, List[A]], Cont[C, B, List[A]]] =
         shift2((k: Unit => List[A]) => v :: k(()))
 
-      def emit1[A](v: A): Cont[List[A], List[A], Unit] =
+      def emit1[A](v: A): Cont[Unit, List[A], List[A]] =
         shift0((k: Unit => List[A]) => v :: k())
 
       //      def emit2[A, B, C](a: A): Cont[List[A], C, B] =
@@ -340,7 +338,7 @@ class PrefixesTest extends FunSuite {
       val v1 = for {_ <- emit1(1); _ <- emit1(2)} yield List[Int]()
       println(reset0(v1))
 
-      def collect[A](c: Cont[List[A], List[A], A]) =
+      def collect[A](c: Cont[A, List[A], List[A]]) =
         reset0(for {
           x <- identity(c)
           _ <- emit1(x)

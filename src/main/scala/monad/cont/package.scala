@@ -2,30 +2,33 @@ package monad
 
 package object cont {
 
-  type Cont[R, B, A] = (A => B) => R
+  type Cont[A, B, C] = (A => B) => C
 
-  def pure[S, A](a: A): Cont[S, S, A] = _ (a)
+  def pure[A, R](a: A): Cont[A, R, R] = _ (a)
 
-  def reset0[R, A](c: Cont[R, A, A]): R = c(identity)
+  def bind[A, B, R, S1, S2](m: Cont[A, S1, R])(f: A => Cont[B, S2, S1]): Cont[B, S2, R] =
+    k => m(f(_)(k))
 
-  def shift0[R, B, A](f: (A => B) => R): Cont[R, B, A] = f(_)
+  def shift0[A, B, C](f: (A => B) => C): Cont[A, B, C] = f(_)
 
-  def shift1[A, B, C, D](f: (A => B) => Cont[C, D, D]): Cont[C, B, A] =
-    shift0((k: A => B) => reset0(f(k)))
+  def reset0[A, B](c: Cont[A, A, B]): B = c(identity)
 
-  def reset1[A, B, C](e: Cont[A, B, B]): Cont[C, C, A] = pure(reset0(e))
+  def shift1[A, B, C, D](f: (A => B) => Cont[D, D, C]): Cont[A, B, C] =
+    shift0(k => reset0(f(k)))
 
-  def take[A, B]: Cont[A => B, B, A] = shift0(identity)
+  def reset1[A, B, C](e: Cont[A, A, B]): Cont[B, C, C] = pure(reset0(e))
 
-  def loop[A, B](f: Cont[A => B, B, A]): A => B = f(loop(f))(_)
+  def take[A, B]: Cont[A, B, A => B] = shift0(identity)
 
-  def stop[A, B](a: A): Cont[A, A, B] = shift0(_ => a)
+  def loop[A, B](f: Cont[A, B, A => B]): A => B = f(loop(f))(_)
 
-  def put[A](a: A): Cont[Stream[A], Stream[A], A] = shift0(a #:: _ (a))
+  def stop[A, B](a: A): Cont[B, B, A] = shift0(_ => a)
 
-  def pipe[A]: Cont[A => Stream[A], Stream[A], A] = take[A, Stream[A]] >>= put
+  def put[A](a: A): Cont[A, Stream[A], Stream[A]] = shift0(a #:: _ (a))
 
-  def lift[A](f: A => A): Cont[A => Stream[A], Stream[A], A] = pipe[A] map f
+  def pipe[A]: Cont[A, Stream[A], A => Stream[A]] = take[A, Stream[A]] >>= put[A]
+
+  def lift[A](f: A => A): Cont[A, Stream[A], A => Stream[A]] = pipe[A] map f
 
   def repeat[A](a: A): Stream[A] = loop(pipe[A])(a)
 
@@ -33,16 +36,16 @@ package object cont {
 
   def unfold[A](a: A)(f: A => A): Stream[A] = gen(f)(a)
 
-  def suspend[A, B](b: B): Cont[B << A, B << A, A] = shift0(<<(b, _))
+  def suspend[A, B](a: A): Cont[B, A << B, A << B] = shift0(<<(a, _))
 
-  def channel[A, B]: Cont[B => B << A, B << A, A] = take[B, B << A] >>= suspend
+  def channel[A, B]: Cont[A, B << A, B => B << A] = take[B, B << A] >>= suspend
 
-  def reflect[M[_] : Monad, A, B](m: M[A]): Cont[M[B], M[B], A] = shift0(Monad[M].flatMap(m))
+  def reflect[M[_] : Monad, A, B](m: M[A]): Cont[A, M[B], M[B]] = shift0(Monad[M].flatMap(m))
 
-  def reify[M[_] : Monad, A, B](e: Cont[B, M[A], A]): B = e(Monad[M].pure)
+  def reify[M[_] : Monad, A, B](e: Cont[A, M[A], B]): B = e(Monad[M].pure)
 
   implicit class Reflect[M[_] : Monad, A](m: M[A]) {
-    def reflect[B]: Cont[M[B], M[B], A] = shift0(Monad[M].flatMap(m))
+    def reflect[B]: Cont[A, M[B], M[B]] = cont.reflect(m)
   }
 
   case class <<[A, B](get: A, put: B => A << B) {
@@ -58,20 +61,20 @@ package object cont {
   }
 
   object ContIndexedMonad extends IndexedMonad[Cont] {
-    override def pure[S, A](a: A): Cont[S, S, A] = _ (a)
+    override def pure[A, R](a: A): Cont[A, R, R] = cont.pure(a)
 
-    override def bind[S1, S2, S3, A, B](m: Cont[S1, S2, A])(
-      f: A => Cont[S2, S3, B]): Cont[S1, S3, B] = k => m(f(_)(k))
+    override def bind[A, S, R, B, S2](m: Cont[A, S, R])(
+      f: A => Cont[B, S2, S]): Cont[B, S2, R] = cont.bind(m)(f)
   }
 
-  implicit class ContMonad[R1, R2, A](val c: Cont[R1, R2, A]) extends AnyVal {
-    def map[B](f: A => B): Cont[R1, R2, B] = ContIndexedMonad.map(c)(f)
+  implicit class ContMonad[A, S, R](val c: Cont[A, S, R]) extends AnyVal {
+    def map[B](f: A => B): Cont[B, S, R] = ContIndexedMonad.map(c)(f)
 
-    def flatMap[R3, B](f: A => Cont[R2, R3, B]): Cont[R1, R3, B] = ContIndexedMonad.bind(c)(f)
+    def flatMap[B, S2](f: A => Cont[B, S2, S]): Cont[B, S2, R] = ContIndexedMonad.bind(c)(f)
 
-    def >>=[R3, B](f: A => Cont[R2, R3, B]): Cont[R1, R3, B] = ContIndexedMonad.bind(c)(f)
+    def >>=[B, S2](f: A => Cont[B, S2, S]): Cont[B, S2, R] = ContIndexedMonad.bind(c)(f)
 
-    def withFilter(f: A => Boolean): ContMonad[R1, R2, A] = this // TODO
+    def withFilter(f: A => Boolean): ContMonad[A, S, R] = this // TODO
   }
 
 }

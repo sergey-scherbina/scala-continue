@@ -1,11 +1,13 @@
+import monad.cont.Cont
+
 package object monad {
 
   trait IndexedMonad[M[_, _, _]] {
-    def pure[S, A](a: A): M[S, S, A]
+    def pure[A, R](a: A): M[A, R, R]
 
-    def bind[S1, S2, S3, A, B](m: M[S1, S2, A])(f: A => M[S2, S3, B]): M[S1, S3, B]
+    def bind[A, S, R, B, S2](m: M[A, S, R])(f: A => M[B, S2, S]): M[B, S2, R]
 
-    def map[S1, S2, A, B](m: M[S1, S2, A])(f: A => B): M[S1, S2, B] =
+    def map[A, B, S, R](m: M[A, S, R])(f: A => B): M[B, S, R] =
       bind(m)(a => pure(f(a)))
   }
 

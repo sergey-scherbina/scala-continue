@@ -18,7 +18,7 @@ class ContTest extends FunSuite {
 
     def fib() = loop(for {
       (x, y) <- take[(Int, Int), Int << Unit]
-      _ <- suspend[Unit, Int](x)
+      _ <- suspend[Int, Unit](x)
     } yield (y, x + y))(1, 1)
 
     println(fib().forAll().take(10).toList)
@@ -129,7 +129,7 @@ class ContTest extends FunSuite {
     def f4 = loop(for {
       x <- take[Int, String << Int]
       _ = println("x = " + x)
-      y <- suspend[Int, String](s"[$x]")
+      y <- suspend[String, Int](s"[$x]")
       _ = println("y = " + y)
     } yield x + y)
 
@@ -172,7 +172,7 @@ class ContTest extends FunSuite {
           b.flip().asInstanceOf[ByteBuffer])))))))
 
     def readStream(ch: AsynchronousFileChannel, p: Long,
-                   z: Int): Cont[Unit, Unit, Stream[Chunk[ByteBuffer]]] =
+                   z: Int): Cont[Stream[Chunk[ByteBuffer]], Unit, Unit] =
       if (p >= ch.size()) pure(Stream.empty) else
         for {x <- read(ch, p, ByteBuffer.allocate(z))
              y <- readStream(ch, p + z, z)
