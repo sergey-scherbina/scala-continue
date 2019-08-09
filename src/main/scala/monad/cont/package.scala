@@ -18,6 +18,11 @@ package object cont {
 
   def reset1[A, B, C](e: Cont[A, A, B]): Cont[B, C, C] = pure(reset0(e))
 
+  def shift2[A, B, C, D, E](c: (A => B) => Cont[C, D, E]): Cont[A, B, Cont[C, D, E]] =
+    shift0((k1: A => B) => shift0((k2: C => D) => c(k1)(k2)))
+
+  def reset2[A, B, C](c: Cont[A, A, Cont[B, B, C]]): C = reset0(reset0(c))
+
   def take[A, B]: Cont[A, B, A => B] = shift0(identity)
 
   def loop[A, B](f: Cont[A, B, A => B]): A => B = f(loop(f))(_)
