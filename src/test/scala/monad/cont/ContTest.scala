@@ -37,13 +37,13 @@ class ContTest extends FunSuite {
   type IntOrStr = String Either Int
 
   test("Div") {
-    val div = reset {
+    val div = reset0 {
       for {
         x <- take[Int, Int => IntOrStr]
         _ = println("x=" + x)
         y <- take[Int, IntOrStr]
         _ = println("y=" + y)
-        _ <- shift((k: Int => IntOrStr) =>
+        _ <- shift0((k: Int => IntOrStr) =>
           if (y == 0) Left("Error: divide by zero")
           else k(y))
       } yield {
@@ -63,12 +63,12 @@ class ContTest extends FunSuite {
   }
 
   test("take") {
-    val f1 = reset {
+    val f1 = reset0 {
       for {
         x <- take[Int, String => IntOrStr]
         _ = println("x=" + x)
         y <- take[String, IntOrStr]
-        _ <- shift((k: String => IntOrStr) =>
+        _ <- shift0((k: String => IntOrStr) =>
           if (y == "") Right(x) else k(y))
         _ = println("y=" + y)
       } yield Left(y + " " + x)
@@ -82,7 +82,7 @@ class ContTest extends FunSuite {
   test("loop") {
     val f2 = loop(for {
       x <- take[Int, Int]
-      _ <- shift((k: Int => Int) =>
+      _ <- shift0((k: Int => Int) =>
         if (x <= 10) k(x) else x)
       _ = println(x)
     } yield x + 1)
@@ -167,7 +167,7 @@ class ContTest extends FunSuite {
       }
 
     def read(ch: AsynchronousFileChannel, p: Long, b: ByteBuffer) =
-      shift((f: Chunk[ByteBuffer] => Unit) => ch.read(b, p, b,
+      shift0((f: Chunk[ByteBuffer] => Unit) => ch.read(b, p, b,
         handler[ByteBuffer](b => r => f((p, r.map((_,
           b.flip().asInstanceOf[ByteBuffer])))))))
 
@@ -184,7 +184,7 @@ class ContTest extends FunSuite {
     val chan = AsynchronousFileChannel
       .open(Paths.get("src/test/resources/hello.txt"))
 
-    reset {
+    reset0 {
       for (x <- readStream(chan, 0, 7)) yield {
         println("He")
         x.map(decode).foreach(println)
@@ -250,15 +250,15 @@ class ContTest extends FunSuite {
     type IOChunk = Try[(ByteBuffer, Long)]
 
     def read(channel: AsynchronousFileChannel) =
-      shift((k: IOChunk => IOChunk) => loop(for {
+      shift0((k: IOChunk => IOChunk) => loop(for {
         chunk <- take[IOChunk, Unit]
-        r <- shift((f: IOChunk => Unit) =>
+        r <- shift0((f: IOChunk => Unit) =>
           chunk.fold[Unit](_ => stop(), c =>
             channel.read(c._1, c._2, c, handler(f))))
       } yield k(r)))
 
     def readFile(channel: AsynchronousFileChannel) =
-      shift((k: IOChunk => IOChunk) => reset(
+      shift0((k: IOChunk => IOChunk) => reset0(
         for (x <- read(channel)) yield k(x).map(c => (
           c._1.flip().asInstanceOf[ByteBuffer], c._2 + c._1.limit()
         ))))
@@ -269,7 +269,7 @@ class ContTest extends FunSuite {
     val chan = AsynchronousFileChannel
       .open(Paths.get("src/test/resources/hello.txt"))
 
-    reset(for {
+    reset0(for {
       x <- readFile(chan)
       _ = for (y <- x)
         println(decode(y._1))
@@ -285,11 +285,11 @@ class ContTest extends FunSuite {
   test("Alice has a cat.") {
 
     def alice() =
-      shift((k1: String => String) =>
-        shift((k2: String => String) =>
+      shift0((k1: String => String) =>
+        shift0((k2: String => String) =>
           "Alice" + k1(k2("."))))
 
-    val cat = reset(for (x <- reset(for (y <- alice())
+    val cat = reset0(for (x <- reset0(for (y <- alice())
       yield " has " + y)) yield "a cat" + x)
 
     println(cat)

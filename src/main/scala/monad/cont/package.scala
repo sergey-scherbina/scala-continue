@@ -6,17 +6,22 @@ package object cont {
 
   def pure[S, A](a: A): Cont[S, S, A] = _ (a)
 
-  def reset[R, A](c: Cont[R, A, A]): R = c(identity)
+  def reset0[R, A](c: Cont[R, A, A]): R = c(identity)
 
-  def shift[R, B, A](f: (A => B) => R): Cont[R, B, A] = f(_)
+  def shift0[R, B, A](f: (A => B) => R): Cont[R, B, A] = f(_)
 
-  def take[A, B]: Cont[A => B, B, A] = shift(identity)
+  def shift1[A, B, C, D](f: (A => B) => Cont[C, D, D]): Cont[C, B, A] =
+    shift0((k: A => B) => reset0(f(k)))
+
+  def reset1[A, B, C](e: Cont[A, B, B]): Cont[C, C, A] = pure(reset0(e))
+
+  def take[A, B]: Cont[A => B, B, A] = shift0(identity)
 
   def loop[A, B](f: Cont[A => B, B, A]): A => B = f(loop(f))(_)
 
-  def stop[A, B](a: A): Cont[A, A, B] = shift(_ => a)
+  def stop[A, B](a: A): Cont[A, A, B] = shift0(_ => a)
 
-  def put[A](a: A): Cont[Stream[A], Stream[A], A] = shift(a #:: _ (a))
+  def put[A](a: A): Cont[Stream[A], Stream[A], A] = shift0(a #:: _ (a))
 
   def pipe[A]: Cont[A => Stream[A], Stream[A], A] = take[A, Stream[A]] >>= put
 
@@ -28,16 +33,16 @@ package object cont {
 
   def unfold[A](a: A)(f: A => A): Stream[A] = gen(f)(a)
 
-  def suspend[A, B](b: B): Cont[B << A, B << A, A] = shift(<<(b, _))
+  def suspend[A, B](b: B): Cont[B << A, B << A, A] = shift0(<<(b, _))
 
   def channel[A, B]: Cont[B => B << A, B << A, A] = take[B, B << A] >>= suspend
 
-  def reflect[M[_] : Monad, A, B](m: M[A]): Cont[M[B], M[B], A] = shift(Monad[M].flatMap(m))
+  def reflect[M[_] : Monad, A, B](m: M[A]): Cont[M[B], M[B], A] = shift0(Monad[M].flatMap(m))
 
   def reify[M[_] : Monad, A, B](e: Cont[B, M[A], A]): B = e(Monad[M].pure)
 
   implicit class Reflect[M[_] : Monad, A](m: M[A]) {
-    def reflect[B]: Cont[M[B], M[B], A] = shift(Monad[M].flatMap(m))
+    def reflect[B]: Cont[M[B], M[B], A] = shift0(Monad[M].flatMap(m))
   }
 
   case class <<[A, B](get: A, put: B => A << B) {

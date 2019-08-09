@@ -7,12 +7,12 @@ class PrefixesTest extends FunSuite {
   test("append") {
     def append[A](lst: List[A]): Cont[List[A] => List[A], List[A], List[A]] =
       lst match {
-        case List() => shift(identity)
+        case List() => shift0(identity)
         case a :: rest => append(rest).map(a :: _)
       }
 
     val app123 =
-      reset(append(List(1, 2, 3)))
+      reset0(append(List(1, 2, 3)))
 
     println(app123(List(5, 6, 7)))
   }
@@ -21,13 +21,13 @@ class PrefixesTest extends FunSuite {
 
     def w[A](lst: List[A]): Cont[List[List[A]], List[A], List[A]] =
       lst match {
-        case List() => shift(_ => List())
-        case x :: xs => shift((k: List[A] => List[A]) =>
-          k(List()) :: reset(w(xs).map(k))).map(x :: _)
+        case List() => shift0(_ => List())
+        case x :: xs => shift0((k: List[A] => List[A]) =>
+          k(List()) :: reset0(w(xs).map(k))).map(x :: _)
       }
 
     def prefixes[A](xs: List[A]) =
-      reset(w(xs))
+      reset0(w(xs))
 
     println(prefixes(List(1, 2, 3)))
 
@@ -48,15 +48,15 @@ class PrefixesTest extends FunSuite {
         case h :: t => if (h > a)
           mapC(part(t))(mapC(_)(h :: _))
         else if (h == a)
-          shift((f: C[List[T]] => C[List[T]]) =>
-            mapC(reset(mapC(part(t))(f)))(h :: _))
-        else shift((f: C[List[T]] => C[List[T]]) =>
-          shift((g: List[T] => List[T]) =>
-            h :: reset(mapC(reset(mapC(part(t))(f)))(g))
+          shift0((f: C[List[T]] => C[List[T]]) =>
+            mapC(reset0(mapC(part(t))(f)))(h :: _))
+        else shift0((f: C[List[T]] => C[List[T]]) =>
+          shift0((g: List[T] => List[T]) =>
+            h :: reset0(mapC(reset0(mapC(part(t))(f)))(g))
           ))
       }
 
-      reset(reset(part(l)))
+      reset0(reset0(part(l)))
     }
 
     println(partition(3, List(4, 1, 3, 5, 2, 3)))
@@ -107,13 +107,13 @@ class PrefixesTest extends FunSuite {
     reify m = runC (fmap Leaf m)
      */
     def choose[A, B](as: Stream[A]): Cont[SearchTree[B], SearchTree[B], A] =
-      shift((k: A => SearchTree[B]) => Node(as.map(x => (_: Unit) => k(x))))
+      shift0((k: A => SearchTree[B]) => Node(as.map(x => (_: Unit) => k(x))))
 
     def failure[A, B](): Cont[SearchTree[B], SearchTree[B], A] =
       choose[A, B](Stream())
 
     def reify[A](m: Cont[SearchTree[A], SearchTree[A], A]): SearchTree[A] =
-      reset(identity(m).map(Leaf(_)))
+      reset0(identity(m).map(Leaf(_)))
 
     /*
     ex1 = reify $ do
@@ -190,14 +190,14 @@ class PrefixesTest extends FunSuite {
     def firstPrefix0[A](p: A => Boolean, xs: List[A]): List[A] = {
       def visit(xs: List[A]): Cont[List[A], List[A], List[A]] =
         xs match {
-          case List() => shift((k: List[A] => List[A]) => List[A]())
+          case List() => shift0((k: List[A] => List[A]) => List[A]())
           case x :: xs =>
             for {y <- if (p(x))
               pure[List[A], List[A]](Nil)
             else visit(xs)} yield x :: y
         }
 
-      reset(visit(xs))
+      reset0(visit(xs))
     }
 
     println(firstPrefix0((_: Int) > 2, List(0, 3, 1, 4, 2, 5)))
@@ -205,15 +205,15 @@ class PrefixesTest extends FunSuite {
     def allPrefixes0[A](p: A => Boolean, xs: List[A]): List[List[A]] = {
       def visit(xs: List[A]): Cont[List[List[A]], List[A], List[A]] =
         xs match {
-          case List() => shift((k: List[A] => List[A]) => List[List[A]]())
+          case List() => shift0((k: List[A] => List[A]) => List[List[A]]())
           case x :: xs =>
             for {y <- if (p(x))
-              shift((k: List[A] => List[A]) => k(Nil) ::
-                reset(for (y <- visit(xs)) yield k(y)))
+              shift0((k: List[A] => List[A]) => k(Nil) ::
+                reset0(for (y <- visit(xs)) yield k(y)))
             else visit(xs)} yield x :: y
         }
 
-      reset(visit(xs))
+      reset0(visit(xs))
     }
 
     println(allPrefixes0((_: Int) > 2, List(0, 3, 1, 4, 2, 5)))
@@ -275,21 +275,86 @@ class PrefixesTest extends FunSuite {
       println(prefixes(List(1, 2, 3, 4)))
     }
     {
-      def shift1[A, B, C, D](f: (A => B) => Cont[C, D, D]): Cont[C, B, A] =
-        shift((k: A => B) => reset(f(k)))
-
-      def reset1[A, B, C](e: Cont[A, B, B]): Cont[C, C, A] = pure(reset(e))
-
       def walk[A](xs: List[A]): Cont[List[List[A]], List[A], List[A]] = xs match {
         case Nil => shift1(_ => pure(List[List[A]]()))
-        case x :: xs => shift1(k => for (z <- reset1(
+        case x :: xs => shift1((k: List[A] => List[A]) => for (z <- reset1(
           for (y <- walk(xs)) yield k(x :: y)))
           yield k(List(x)) :: z)
       }
 
-      def prefixes[A](xs: List[A]): List[List[A]] = reset(walk(xs))
+      def prefixes[A](xs: List[A]): List[List[A]] = reset0(walk(xs))
 
       println(prefixes(List(1, 2, 3, 4)))
+    }
+
+    {
+      def fail[A, B](): Cont[Unit, B, A] = shift1(_ => pure(()))
+
+      def amb[A, B, C](c1: => A, c2: => A): Cont[Unit, Cont[C, B, B], A] =
+        shift1((k: A => Cont[C, B, B]) => for {
+          _ <- reset1(k(c1))
+          _ <- reset1(k(c2))
+        } yield ())
+
+      //      def shift2[A, B, C, D, E, F](f: (A => B) => Cont[F, E, E]): Cont[Cont[F, D, C], B, A] =
+      //        shift((k1: A => B) => shift((k2: C => D) => reset(f(k1))))
+      //
+      //      def fail2[A, B, C, D, E, F]() =
+      //        shift2((k1: A => B) => pure[E, Unit](()))
+
+      //      def push[A, B, C, D, E](f: A => Cont[Cont[C, D, E], Cont[C, D, E], B])(
+      //        k: B => Cont[C, D, E]): A => Cont[C, D, E] = (a: A) => f(a)(k)
+      //
+      //      def lift[A, B, C, D, E](m: Cont[Cont[C, D, E], Cont[C, D, E], A])(
+      //        f: A => Cont[Cont[C, D, E], Cont[C, D, E], B]): Cont[Cont[C, D, E], Cont[C, D, E], B] =
+      //        (k: B => Cont[C, D, E]) => m(push(f)(k))
+      //
+      //      def shift2[A, B, C, D, E, F] =
+      //        (k: A => B) => lift(lift(shift(k)))
+
+      def shift2[A, B, C, D, E](m: (A => B) => C): Cont[Cont[C, D, E], Cont[B, D, E], A] =
+        shift0(m).flatMap[D, E]
+
+      def reset2[B, C, D, E](c: Cont[Cont[C, D, D], Cont[B, D, E], Cont[B, D, E]]) =
+        reset0(reset0(c))
+
+      def fail2[A, B, C, D](): Cont[Cont[Unit, D, C], Cont[B, D, C], A] =
+        shift2((_: A => B) => ())
+
+      def emit[A, B, C](v: A): Cont[Cont[List[A], B, C], Cont[List[A], B, C], Unit] =
+        shift2((k: Unit => List[A]) => v :: k(()))
+
+      def emit1[A](v: A): Cont[List[A], List[A], Unit] =
+        shift0((k: Unit => List[A]) => v :: k())
+
+      //      def emit2[A, B, C](a: A): Cont[List[A], C, B] =
+      //        shift((k: B => C) => reset(emit1(a)))
+
+      //      def c1[A, B] =
+      //        for {_ <- emit2[Int, A, B](1);
+      //             _ <- emit2[Int, A, B](2)
+      //             } yield List()
+      //
+      //      println(reset(c1))
+
+      val v1 = for {_ <- emit1(1); _ <- emit1(2)} yield List[Int]()
+      println(reset0(v1))
+
+      def collect[A](c: Cont[List[A], List[A], A]) =
+        reset0(for {
+          x <- identity(c)
+          _ <- emit1(x)
+        } yield List[A]())
+
+      //      def shift2[A, B, C, D, E, F] =
+      //        (k: A => B) => lift(lift(shift[C,B,A](k)))
+
+      //      type :~>[A, B] = ({type F[S] = A => Cont[S, S, B]})#F[_]
+      //
+      //      def shift2[A, B, S, T](f: (B :~> S) => Cont[T, T, A]): Cont[T, S, B] =
+      //        shift1(k => f((x: B :~> S) => pure(k(x))))
+
+
     }
 
     /*
