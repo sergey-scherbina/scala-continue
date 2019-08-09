@@ -1,5 +1,3 @@
-import monad.cont.Cont
-
 package object monad {
 
   trait IndexedMonad[M[_, _, _]] {
