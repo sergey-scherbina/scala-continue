@@ -258,6 +258,7 @@ class PrefixesTest extends FunSuite {
 
   test("prefixes3") {
     // http://www.ii.uni.wroc.pl/~mabi/papers/biernacka-al-ppdp11.pdf
+
     {
       def walk[A, B, C](xs: List[A]): (List[A] => (B => C) => C) => (List[B] => C) => C =
         k1 => k2 => xs match {
@@ -308,8 +309,6 @@ class PrefixesTest extends FunSuite {
       def shift2[A, B, C, D, E](c: (A => B) => (C => D) => E): Cont[A, B, Cont[C, D, E]] =
         shift0((k1: A => B) => shift0((k2: C => D) => c(k1)(k2)))
 
-      def reset2[A, B, C](c: Cont[A, A, Cont[B, B, C]]): C = reset0(reset0(c))
-
       def walk[A, B, C](xs: List[A]): Cont[List[A], Cont[B, C, C], Cont[List[B], C, C]] =
         shift2(k1 => k2 => xs match {
           case Nil => k2(List())
@@ -317,21 +316,6 @@ class PrefixesTest extends FunSuite {
             (b: B) => walk(xs)((vs: List[A]) => k1(x :: vs))(
               (vss: List[B]) => k2(b :: vss))
           )
-        })
-
-      def prefixes[A](xs: List[A]): List[List[A]] = reset0(walk(xs)(
-        vs => (k2: List[A] => List[List[A]]) => k2(vs)))
-
-      println(prefixes(List(1, 2, 3, 4)))
-    }
-    {
-      def walk[A, B, C](xs: List[A]): Cont[List[A], Cont[B, C, C], Cont[List[B], C, C]] =
-        shift2((k1: List[A] => Cont[B, C, C]) => xs match {
-          case Nil => pure(List())
-          case (x :: xs) => for {
-            b <- k1(List(x))
-            bs <- walk(xs)((vs: List[A]) => k1(x :: vs))
-          } yield b :: bs
         })
 
       def prefixes[A](xs: List[A]): List[List[A]] = reset0(walk(xs)(
