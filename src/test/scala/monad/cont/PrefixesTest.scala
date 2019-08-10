@@ -475,6 +475,21 @@ class PrefixesTest extends FunSuite {
         }
     */
 
+  }
 
+  test("prefix4") {
+    def walk[A](xs: List[A]): Cont[List[A], List[A],
+      Cont[List[List[A]], List[List[A]], List[List[A]]]] =
+      shift2 { (k1: List[A] => List[A]) =>
+        (k2: List[List[A]] => List[List[A]]) =>
+          xs match {
+            case Nil => k2(List())
+            case (x :: xs) => k1(List(x)) ::
+              reset2(for (vs <- walk(xs))
+                yield k1(x :: vs))
+          }
+      }
+
+    println(reset2(walk(List(1, 2, 3, 4))))
   }
 }
