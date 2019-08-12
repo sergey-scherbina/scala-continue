@@ -9,16 +9,15 @@ package object cont {
   @inline def bind[A, B, R, S1, S2](m: Cont[A, S1, R])(f: A => Cont[B, S2, S1]): Cont[B, S2, R] =
     k => m(f(_)(k))
 
-  @inline def shift0[A, B, C](f: (A => B) => C): Cont[A, B, C] = f(_)
-
   @inline def lift[A, B, C, D, E](c: Cont[A, B, C]): Cont[A, Cont[D, E, B], Cont[D, E, C]] = bind(c)
-
-  @inline def reset0[A, R](c: Cont[A, A, R]): R = c(identity)
 
   @inline def reset[A, R](c: Cont[A, Cont[A, R, R], Cont[A, R, R]]): Cont[A, R, R] = c(pure)
 
-  @inline def shift1[A, B, C, D](f: (A => B) => Cont[D, D, C]): Cont[A, B, C] =
-    shift0(k => reset0(f(k)))
+  @inline def shift0[A, B, C](f: (A => B) => C): Cont[A, B, C] = f(_)
+
+  @inline def reset0[A, R](c: Cont[A, A, R]): R = c(identity)
+
+  @inline def shift1[A, B, C, D](f: (A => B) => Cont[D, D, C]): Cont[A, B, C] = shift0(k => reset0(f(k)))
 
   @inline def reset1[A, B, C](e: Cont[A, A, B]): Cont[B, C, C] = pure(reset0(e))
 
@@ -27,9 +26,10 @@ package object cont {
 
   @inline def reset2[A, B, C](c: Cont[A, A, Cont[B, B, C]]): C = reset0(reset0(c))
 
-  @inline def take[A, B]: Cont[A, B, A => B] = shift0(identity)
 
   def loop[A, B](f: Cont[A, B, A => B]): A => B = f(loop(f))(_)
+
+  @inline def take[A, B]: Cont[A, B, A => B] = shift0(identity)
 
   @inline def stop[A, B](a: A): Cont[B, B, A] = shift0(_ => a)
 
@@ -49,12 +49,12 @@ package object cont {
 
   @inline def emit0[A](a: A): Cont[Unit, List[A], List[A]] = shift0(a :: _ ())
 
-  def emit1[A](a: A): Cont[Unit, Cont[Unit, List[A], List[A]], Cont[Unit, List[A], List[A]]] = lift(emit0(a))
+  @inline def emit1[A](a: A): Cont[Unit, Cont[Unit, List[A], List[A]], Cont[Unit, List[A], List[A]]] = lift(emit0(a))
 
   //  @inline def emit[A, R](a: A): Cont[Unit, Cont[List[A], R, R], Cont[List[A], R, R]] = shift0(k => for (as <- k()) yield a :: as)
 
-  @inline def collect[A](m: Cont[Unit, List[A], List[A]]): List[A]
-  = reset0(for (_ <- identity(m)) yield List[A]())
+  @inline def collect[A](m: Cont[Unit, List[A], List[A]]): List[A] =
+    reset0(for (_ <- identity(m)) yield List[A]())
 
   @inline def fails[A, R](): Cont[A, Cont[Unit, R, R], Cont[Unit, R, R]] =
     shift0(_ => pure(()))
@@ -100,6 +100,8 @@ package object cont {
     @inline def >>=[B, S2](f: A => Cont[B, S2, S]): Cont[B, S2, R] = ContIndexedMonad.bind(c)(f)
 
     @inline def withFilter(f: A => Boolean): ContMonad[A, S, R] = this // TODO
+
+    @inline def lift[B, S2]: Cont[A, Cont[B, S2, S], Cont[B, S2, R]] = shift0(flatMap[B, S2])
   }
 
 }

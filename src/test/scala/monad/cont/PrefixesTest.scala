@@ -535,6 +535,23 @@ class PrefixesTest extends FunSuite {
 
     println(collect(reset(emitTriples(9, 15))))
 
+    def emitTriples1(n: Int, s: Int) =
+      for {res <- triple[List[(Int, Int, Int)]](n, s);
+           _ <- emit0(res).lift[Unit, List[(Int, Int, Int)]]} yield ()
+
+    println(collect(reset(emitTriples1(9, 15))))
+
+    type Triple = (Int, Int, Int)
+
+    def pyth(n: Int) = for {
+      x <- (1 to n).toList.reflect[Triple].lift[Unit, List[Triple]]
+      y <- (x to n).toList.reflect[Triple].lift[Unit, List[Triple]]
+      z <- (y to n).toList.reflect[Triple].lift[Unit, List[Triple]]
+      _ <- if (x * x + y * y == z * z) emit1((x, y, z)) else fails[Unit, List[Triple]]()
+    } yield ()
+
+    println(collect(reset(pyth(10))))
+
     // Cps r a = (a → r) → r
     // Stm [ ] a = a
     // Stm (r :: rs) a = Cps (Stm rs r) a
