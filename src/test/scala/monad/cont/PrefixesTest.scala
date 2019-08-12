@@ -449,6 +449,9 @@ class PrefixesTest extends FunSuite {
           type Cont1[A] = Cont[Ans1, Ans1, A]
           type Cont2[A] = Cont[Cont1[Ans2], Cont1[Ans2], A]
 
+          type Cont1[A] = Cont[A, Unit, Unit]
+          type Cont2[A] = Cont[A, Cont1[Ans2], Cont1[Ans2]]
+
           def shift_1[A](k: (A => Ans1) => Ans1): Cont1[A] = shift(k)
 
           def reset_1[A](e: Unit => Cont1[A]): Ans1 = reset(e())
@@ -505,6 +508,124 @@ class PrefixesTest extends FunSuite {
       }
 
     println(reset0(walk(List(1, 2, 3, 4))))
+  }
+
+  test("emitTriples") {
+
+    def choice[R](n: Int): Cont[Int, Cont[Unit, R, R], Cont[Unit, R, R]] =
+      if (n < 1) fails[Int, R]() else for {
+        b <- flip()
+        x <- if (b) pure[Int, Cont[Unit, R, R]](n)
+        else choice[R](n - 1)
+      } yield x
+
+    def triple[R](n: Int, s: Int): Cont[(Int, Int, Int), Cont[Unit, R, R], Cont[Unit, R, R]] =
+      for {
+        i <- choice(n)
+        j <- choice(i - 1)
+        k <- choice(j - 1)
+        x <- if (i + j + k == s)
+          pure[(Int, Int, Int), Cont[Unit, R, R]]((i, j, k))
+        else fails[(Int, Int, Int), R]()
+      } yield x
+
+    def emitTriples(n: Int, s: Int) =
+      for {res <- triple[List[(Int, Int, Int)]](n, s);
+           _ <- emit1[(Int, Int, Int)](res)} yield ()
+
+    println(collect(reset(emitTriples(9, 15))))
+
+    // Cps r a = (a → r) → r
+    // Stm [ ] a = a
+    // Stm (r :: rs) a = Cps (Stm rs r) a
+
+    // Stm (Unit :: []) Int => Cps (Stm [] Unit) Int =>
+    // Cps Unit Int => (Int => Unit => Unit) => Cont[Int, Unit, Unit]
+
+    // Stm (Unit :: rs) Int => Cps (Stm rs Unit) Int =>
+    // Cps (Cps rs Unit) Int =>
+    // (Int -> (Unit -> R) -> R) -> (Unit -> R) -> R
+    // Cont[Int, Cont[Unit,R,R], Cont[Unit,R,R]]
+
+    // Stm (r :: rs) Bool => Cps (Stm rs r) Bool =>
+    // (Bool -> Stm rs r) -> Stm rs r =>
+    // Cont[Bool, R, R]
+
+    // Stm (Unit :: List a :: []) Unit
+    // Cps ( Stm (List a :: []) Unit ) Unit
+    // Cps ( Cps (Stm [] List a) Unit ) Unit
+    // Cps ( Cps (List a) Unit ) Unit
+    // (Unit -> Cps (List a) Unit ) -> Cps (List a) Unit
+    // Cps (List a) Unit => (Unit -> List a) -> List a
+    // (Unit -> (Unit -> List a) -> List a ) -> (Unit -> List a) -> List a
+
+    // Stm (a :: r :: []) a => Cps (Stm (r :: []) a) a =>
+    // Cps (Cps (Stm [] r) a ) a => Cps (Cps r a) a =>
+    // (a -> (Cps r a)) -> Cps r a =>
+    // (a -> (a -> r) -> r) -> (a -> r) -> r =>
+    // Cont[A, Cont[A,R,R], Cont[A,R,R]]
+
+    // Stm (Unit :: r :: rs) a => Cps (Stm (r :: rs) Unit) a =>
+    // Cps ( Cps (Stm rs r) Unit ) a =>
+    // (a -> Cps (Stm rs r) Unit) -> Cps (Stm rs r) Unit
+    // (a -> (Unit -> Stm rs r) -> Stm rs r) -> (Unit -> Stm rs r) -> Stm rs r
+    // Cont[A, Cont[Unit,R,R], Cont[Unit,R,R]]
+  }
+
+  test("prefix7") {
+
+    // Cps r a = (a → r) → r
+    // Stm [ ] a = a
+    // Stm (r :: rs) a = Cps (Stm rs r) a
+
+    // Stm (List a :: []]) () => Cps (Stm [] List a) ()
+    // Cps List a () => (Unit -> List[A]) => List[A] =>
+    // Cont[Unit,List[A],List[A]]
+
+    // Stm (List a :: r :: []]) () => Cps (Stm r :: [] List a) ()
+    // Cps (Cps (Stm [] r) List[A]) Unit =>
+    // Cps (Cps r List[A]) Unit
+    // (Unit -> (List[A] -> R) -> R) -> (List[A] -> R) -> R
+    // Cont[Unit, Cont[List[A],R,R],Cont[List[A],R,R]]
+
+    // Stm [List Int, List Int ] ()
+    // Cps (Stm List Int List Int) Unit
+    // Cps (Cps List Int List Int) Unit
+    // (Unit -> (List[Int] -> List[Int]) -> List[Int] ) -> (List[Int] => List[Int]) => List[Int]
+    // Cont[Unit,Cont[List[Int],List[Int],List[Int]],Cont[List[Int],List[Int],List[Int]]]
+
+    //    def partition(a: Int, l: List[Int]): Cont[Unit,
+    //      Cont[List[Int], List[Int], List[Int]],
+    //      Cont[List[Int], List[Int], List[Int]]
+    //    ] = l match {
+    //      case Nil => pure(())
+    //      case (h :: t) => if (a < h) for {
+    //        _ <- emit0(h);
+    //        _ <- partition(a, t)
+    //      } yield () else for {
+    //        _ <- emit1(h);
+    //        _ <- partition(a, t)
+    //      } yield ()
+    //    }
+
+    //        def walk[A, B](xs: List[A]): Cont[List[A], List[List[A]], List[List[A]]]
+    //        = xs match {
+    //          //case List() => pure(List())
+    //          case (x :: xs) =>
+    //            //        val c2: Cont[List[A], List[List[A]], List[List[A]]] =
+    //            //        for (vs <- walk(xs)) yield x :: vs
+    //            //        val value =
+    //            //          amb(pure(List(x)))(c2)
+    //            //        value
+    //            val cc =
+    //              for (vs <- walk(xs)) yield x :: vs
+    //
+    //            cc
+    //        }
+    //
+    //        def prefixes[A](xs: List[A]): List[List[A]] = collect(walk(xs))
+    //
+    //        println(prefixes(List(1, 2, 3, 4)))
   }
 
 }

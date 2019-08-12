@@ -11,7 +11,11 @@ package object cont {
 
   @inline def shift0[A, B, C](f: (A => B) => C): Cont[A, B, C] = f(_)
 
-  @inline def reset0[A, B](c: Cont[A, A, B]): B = c(identity)
+  @inline def lift[A, B, C, D, E](c: Cont[A, B, C]): Cont[A, Cont[D, E, B], Cont[D, E, C]] = bind(c)
+
+  @inline def reset0[A, R](c: Cont[A, A, R]): R = c(identity)
+
+  @inline def reset[A, R](c: Cont[A, Cont[A, R, R], Cont[A, R, R]]): Cont[A, R, R] = c(pure)
 
   @inline def shift1[A, B, C, D](f: (A => B) => Cont[D, D, C]): Cont[A, B, C] =
     shift0(k => reset0(f(k)))
@@ -33,17 +37,33 @@ package object cont {
 
   @inline def pipe[A]: Cont[A, Stream[A], A => Stream[A]] = take[A, Stream[A]] >>= put[A]
 
-  @inline def lift[A](f: A => A): Cont[A, Stream[A], A => Stream[A]] = pipe[A] map f
-
   @inline def repeat[A](a: A): Stream[A] = loop(pipe[A])(a)
 
-  @inline def gen[A](f: A => A): A => Stream[A] = loop(lift(f))
+  @inline def gen[A](f: A => A): A => Stream[A] = loop(pipe[A] map f)
 
   @inline def unfold[A](a: A)(f: A => A): Stream[A] = gen(f)(a)
 
   @inline def suspend[A, B](a: A): Cont[B, A << B, A << B] = shift0(<<(a, _))
 
   @inline def channel[A, B]: Cont[A, B << A, B => B << A] = take[B, B << A] >>= suspend
+
+  @inline def emit0[A](a: A): Cont[Unit, List[A], List[A]] = shift0(a :: _ ())
+
+  def emit1[A](a: A): Cont[Unit, Cont[Unit, List[A], List[A]], Cont[Unit, List[A], List[A]]] = lift(emit0(a))
+
+  //  @inline def emit[A, R](a: A): Cont[Unit, Cont[List[A], R, R], Cont[List[A], R, R]] = shift0(k => for (as <- k()) yield a :: as)
+
+  @inline def collect[A](m: Cont[Unit, List[A], List[A]]): List[A]
+  = reset0(for (_ <- identity(m)) yield List[A]())
+
+  @inline def fails[A, R](): Cont[A, Cont[Unit, R, R], Cont[Unit, R, R]] =
+    shift0(_ => pure(()))
+
+  @inline def amb[A, R](a1: A, a2: A): Cont[A, Cont[Unit, R, R], Cont[Unit, R, R]] =
+    shift0((k: A => Cont[Unit, R, R]) => for {_ <- k(a1); _ <- k(a2)} yield ())
+
+  @inline def flip[R](): Cont[Boolean, Cont[Unit, R, R], Cont[Unit, R, R]] =
+    amb[Boolean, R](true, false)
 
   @inline def reflect[M[_] : Monad, A, B](m: M[A]): Cont[A, M[B], M[B]] = shift0(Monad[M].flatMap(m))
 
