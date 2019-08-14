@@ -1,7 +1,5 @@
 package cont
 
-import com.sun.org.apache.xpath.internal.operations.Bool
-
 object Cont {
 
   type Cont[A, S, R] = (A => S) => R
