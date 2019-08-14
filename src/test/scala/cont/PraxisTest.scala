@@ -25,7 +25,7 @@ class PraxisTest extends FunSuite {
   test("prefixes") {
 
     def prefixes[A](xs: List[A]): List[List[A]] = {
-      
+
       def walk: List[A] => Cont[List[A], List[A], List[List[A]]] = {
         case List() => shift0(_ => List())
         case x :: xs => shift0(k => k(List(x)) :: reset0(
@@ -40,4 +40,21 @@ class PraxisTest extends FunSuite {
     }
   }
 
+  test("partition") {
+
+    def partition(a: Int, l: List[Int]): Stm[List[Int] :#: List[Int], Unit] = l match {
+      case List() => pure(())
+      case (h :: t) =>
+        if (a < h) for {
+          _ <- emit1[Int, List[Int]](h)
+          _ <- partition(a, t)
+        } yield () else for {
+          _ <- emit0(h).lift[List[Int]]
+          _ <- partition(a, t)
+        } yield ()
+    }
+
+    println(reset0(collect1(partition(3, List(4, 1, 3, 5, 2, 3)))))
+
+  }
 }
