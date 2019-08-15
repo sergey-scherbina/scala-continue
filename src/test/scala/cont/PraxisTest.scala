@@ -42,7 +42,7 @@ class PraxisTest extends FunSuite {
 
   test("partition") {
 
-    def partition(a: Int, l: List[Int]): Stm[List[Int] :#: List[Int], Unit] = l match {
+    def partition(a: Int, l: List[Int]): Unit :#: List[Int] :#: List[Int] = l match {
       case List() => pure(())
       case (h :: t) =>
         if (a < h) for {
