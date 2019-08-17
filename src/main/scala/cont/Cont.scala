@@ -62,4 +62,39 @@ object Cont {
 
   @inline def collect1[A, R](m: Unit :#: List[A] :#: R): List[A] :#: R = reset1(for (_ <- m) yield List())
 
+  trait Reflection[F[_]] {
+    def reflect0[A, B](m: F[A]): A :#: F[B]
+
+    //    def reflect1[A, R](m: F[A]): A :#: F[A] :#: R
+
+    def reify0[A](m: A :#: F[A]): F[A]
+
+    //    def reify1[A, R](m: A :#: F[A] :#: R): F[A] :#: R
+  }
+
+  implicit class Reflect0[A, F[_] : Reflection](m: F[A]) {
+    def reflect0[B]: A :#: F[B] = implicitly[Reflection[F]].reflect0(m)
+
+    //    def reflect1[R]: A :#: F[A] :#: R = implicitly[Reflection[F]].reflect1(m)
+  }
+
+  implicit class Reify0[A, F[_] : Reflection](m: A :#: F[A]) {
+    def reify0: F[A] = implicitly[Reflection[F]].reify0(m)
+  }
+
+  //  implicit class Reify1[A, R, F[_] : Reflection](m: A :#: F[A] :#: R) {
+  //    def reify1: F[A] :#: R = implicitly[Reflection[F]].reify1(m)
+  //  }
+
+  implicit object ListReflection extends Reflection[List] {
+    override def reflect0[A, B](m: List[A]): A :#: List[B] = shift0((k: A => List[B]) => m.flatMap(k))
+
+    override def reify0[A](m: A :#: List[A]): List[A] = m(List(_))
+
+    //    override def reify1[A, R](m: A :#: List[A] :#: R): List[A] :#: R = m(a => pure(List(a)))
+    //
+    //    override def reflect1[A, R](m: List[A]): A :#: List[A] :#: R =
+    //      ???
+  }
+
 }
