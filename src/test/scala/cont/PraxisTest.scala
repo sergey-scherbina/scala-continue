@@ -204,7 +204,48 @@ class PraxisTest extends FunSuite {
 
     println(pyth(10))
 
+    def tripleS(x: Int, y: Int, z: Int): Unit :#: Unit :#: Stream[(Int, Int, Int)] =
+      if (x * x + y * y == z * z) emitS0((x, y, z)).lift else fail1
+
+    def pythS(n: Int): Stream[(Int, Int, Int)] = collectS0(reset1(for {
+      x <- (1 to n).toStream.reflect0.lift
+      y <- (x to n).toStream.reflect0.lift
+      z <- (y to n).toStream.reflect0.lift
+      _ <- tripleS(x, y, z)
+    } yield ()))
+
+    println(pythS(10))
   }
 
+  test("state") {
+
+    //State s r a ~ s -> (a -> s -> r) -> r
+
+    type State[A, S, R] = A :#: (S => R)
+
+    def get[S, R]: S :#: (S => R) = shift0(k => s => k(s)(s))
+
+    def set[S, R](s1: S): Unit :#: (S => R) = shift0(k => _ => k()(s1))
+
+    def tick[R]: Unit :#: (Int => R) = for (
+      n <- get[Int, R]; _ <- set[Int, R](n + 1)) yield ()
+
+    def runState[S, R](e: R :#: (S => R)): S => R = e(k => _ => k)
+
+    def mkList(n: Int): List[Int] = {
+      def aux(n: Int): List[Int] :#: (Int => List[Int]) =
+        if (n > 0)
+          for (_ <- tick[List[Int]];
+               x <- get[Int, List[Int]];
+               xs <- aux(n - 1))
+            yield x :: xs
+        else pure(List())
+
+      runState(aux(n))(0)
+    }
+
+    assert(mkList(10) == List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+
+  }
 
 }

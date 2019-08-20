@@ -66,6 +66,14 @@ object Cont {
 
   @inline def collect1[A, R](m: Unit :#: List[A] :#: R): List[A] :#: R = reset1(for (_ <- m) yield List())
 
+  @inline def emitS0[A](a: A): Unit :#: Stream[A] = shift0(k => a #:: k())
+
+  @inline def emitS1[A, R](a: A): Unit :#: Stream[A] :#: R = shift1(k => for (as <- k()) yield a #:: as)
+
+  @inline def collectS0[A](m: Unit :#: Stream[A]): Stream[A] = reset0(for (_ <- m) yield Stream())
+
+  @inline def collectS1[A, R](m: Unit :#: Stream[A] :#: R): Stream[A] :#: R = reset1(for (_ <- m) yield Stream())
+
   trait Reflection[F[_]] {
     def reflect0[A, B](m: F[A]): A :#: F[B]
 
