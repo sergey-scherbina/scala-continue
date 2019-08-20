@@ -46,11 +46,15 @@ object Cont {
 
   @inline def flip0[S]: Cont[Boolean, S, Unit] = amb0[Boolean, S](true, false)
 
+  @inline def return0[A, B](a: A): A :#: B = shift0(pure(a))
+
+  @inline def return1[A, B, R](a: A): A :#: B :#: R = shift1(pure(a))
+
   @inline def abort1[A, B, R](b: B): A :#: B :#: R = shift1(_ => pure(b))
 
   @inline def fail1[A, R]: A :#: Unit :#: R = abort1()
 
-  @inline def amb1[A, R](a1: A, a2: A): A :#: Unit :#: R = shift1(k => for {_ <- k(a1); b <- k(a2)} yield ())
+  @inline def amb1[A, R](a1: A, a2: A): A :#: Unit :#: R = shift1(k => for {_ <- k(a1); _ <- k(a2)} yield ())
 
   @inline def flip1[R]: Boolean :#: Unit :#: R = amb1[Boolean, R](true, false)
 
@@ -65,36 +69,60 @@ object Cont {
   trait Reflection[F[_]] {
     def reflect0[A, B](m: F[A]): A :#: F[B]
 
-    //    def reflect1[A, R](m: F[A]): A :#: F[A] :#: R
+    def reflect1[A, B, R](m: F[A]): A :#: F[B] :#: F[R]
 
     def reify0[A](m: A :#: F[A]): F[A]
 
-    //    def reify1[A, R](m: A :#: F[A] :#: R): F[A] :#: R
+    // def reify1[A, B, R](m: A :#: F[B] :#: F[R]): F[A]
+
   }
 
   implicit class Reflect0[A, F[_] : Reflection](m: F[A]) {
     def reflect0[B]: A :#: F[B] = implicitly[Reflection[F]].reflect0(m)
 
-    //    def reflect1[R]: A :#: F[A] :#: R = implicitly[Reflection[F]].reflect1(m)
+    def reflect1[B, R](m: F[A]): A :#: F[B] :#: F[R] = implicitly[Reflection[F]].reflect1(m)
   }
 
   implicit class Reify0[A, F[_] : Reflection](m: A :#: F[A]) {
     def reify0: F[A] = implicitly[Reflection[F]].reify0(m)
   }
 
-  //  implicit class Reify1[A, R, F[_] : Reflection](m: A :#: F[A] :#: R) {
-  //    def reify1: F[A] :#: R = implicitly[Reflection[F]].reify1(m)
-  //  }
-
   implicit object ListReflection extends Reflection[List] {
-    override def reflect0[A, B](m: List[A]): A :#: List[B] = shift0((k: A => List[B]) => m.flatMap(k))
+    @inline override def reflect0[A, B](m: List[A]): A :#: List[B] = shift0(m.flatMap(_))
 
-    override def reify0[A](m: A :#: List[A]): List[A] = m(List(_))
+    @inline override def reify0[A](m: A :#: List[A]): List[A] = m(List(_))
 
-    //    override def reify1[A, R](m: A :#: List[A] :#: R): List[A] :#: R = m(a => pure(List(a)))
-    //
-    //    override def reflect1[A, R](m: List[A]): A :#: List[A] :#: R =
-    //      ???
+    @inline def reflect1[A, B, R](m: List[A]): A :#: List[B] :#: List[R] =
+      shift1(k1 => shift0(k2 => m.flatMap(k1(_)(k2))))
+
+    @inline def reify1[A, R](m: A :#: List[A] :#: R): List[A] :#: R = m(a => pure(List(a)))
+
+    @inline def reify[A, R](m: (A :#: List[A]) :#: R): List[A] :#: R = m.map(reify0)
+
+    @inline def reflect[A, B, R](m: List[A]): A :#: List[R] :#: R =
+      shift1(k1 => shift0(k2 => k2(m.flatMap(a => List(k1(a)(k2))))))
+    
   }
+
+  implicit object StreamReflection extends Reflection[Stream] {
+    @inline override def reflect0[A, B](m: Stream[A]): A :#: Stream[B] = shift0(m.flatMap(_))
+
+    @inline override def reify0[A](m: A :#: Stream[A]): Stream[A] = m(Stream(_))
+
+    @inline def reflect1[A, B, R](m: Stream[A]): A :#: Stream[B] :#: Stream[R] =
+      shift1(k1 => shift0(k2 => m.flatMap(k1(_)(k2))))
+  }
+
+  @inline def project0[A, B, R](fa: A :#: B)(br: B => R)(rb: R => B): A :#: R =
+    shift0((k: A => R) => br(fa(a => rb(k(a)))))
+
+  @inline def project1[A, B, R](fa: A :#: B)(f1: B => R)(f2: R => B): A :#: B :#: R =
+    project0[A, B, B :#: R](fa)(pure)(k2 => f2(k2(f1)))
+
+  @inline def pair0[A, B, R](a1: A, a2: A): (A, A) :#: B =
+    for (x <- return0[A, B](a1); y <- return0[A, B](a1)) yield (x, y)
+
+  @inline def pair1[A, B, R](a1: A, a2: A): (A, A) :#: B :#: R =
+    for (x <- return1[A, B, R](a1); y <- return1[A, B, R](a1)) yield (x, y)
 
 }
