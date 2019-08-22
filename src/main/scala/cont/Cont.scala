@@ -109,7 +109,7 @@ object Cont {
 
     @inline def reflect[A, B, R](m: List[A]): A :#: List[R] :#: R =
       shift1(k1 => shift0(k2 => k2(m.flatMap(a => List(k1(a)(k2))))))
-    
+
   }
 
   implicit object StreamReflection extends Reflection[Stream] {
@@ -132,5 +132,18 @@ object Cont {
 
   @inline def pair1[A, B, R](a1: A, a2: A): (A, A) :#: B :#: R =
     for (x <- return1[A, B, R](a1); y <- return1[A, B, R](a1)) yield (x, y)
+
+  @inline def state0[A, S, R](f: S => (A, S)): A :#: (S => R) =
+    shift0(k => s => Function.uncurried(k).tupled(f(s)))
+
+  @inline def runState[S, R](e: R :#: (S => R)): S => R = e(k => _ => k)
+
+  @inline def access0[A, S, R](f: S => S): S :#: (S => R) = state0(s => (s, f(s)))
+
+  @inline def get0[S, R]: S :#: (S => R) = access0(identity)
+
+  @inline def set0[S, R](s: S): Unit :#: (S => R) = state0(s => ((), s))
+
+  @inline def increase0[R]: Int :#: (Int => R) = access0(_ + 1)
 
 }

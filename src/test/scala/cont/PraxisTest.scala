@@ -219,27 +219,14 @@ class PraxisTest extends FunSuite {
 
   test("state") {
 
-    //State s r a ~ s -> (a -> s -> r) -> r
-
-    // type State[A, S, R] = A :#: (S => R)
-
-    def get[S, R]: S :#: (S => R) = shift0(k => s => k(s)(s))
-
-    def set[S, R](s1: S): Unit :#: (S => R) = shift0(k => _ => k()(s1))
-
-    def tick[R]: Unit :#: (Int => R) =
-      for (n <- get[Int, R]; _ <- set[Int, R](n + 1)) yield ()
-
-    def runState[S, R](e: R :#: (S => R)): S => R = e(k => _ => k)
-
     def mkList(n: Int): List[Int] = {
       def aux(n: Int): List[Int] :#: (Int => List[Int]) =
         n match {
           case 0 => pure(List())
-          case m =>
-            for (_ <- tick[List[Int]];
-                 x <- get[Int, List[Int]];
-                 xs <- aux(m - 1))
+          case _ =>
+            for (_ <- increase0;
+                 x <- get0;
+                 xs <- aux(n - 1))
               yield x :: xs
         }
 
@@ -257,14 +244,10 @@ class PraxisTest extends FunSuite {
 
     def mkList2(n: Int, s: Int = 1): List[Int] = n match {
       case 0 => List()
-      case m => s :: mkList2(m - 1, s + 1)
+      case _ => s :: mkList2(n - 1, s + 1)
     }
 
     println(mkList2(10))
-
-    def mod[S, R](f: S => S): S :#: (S => R) = shift0(k => s => k(s)(f(s)))
-
-    def tick1[R]: Int :#: (Int => R) = mod(_ + 1)
 
     def mkList0(n: Int): List[Int] = {
 
@@ -272,7 +255,7 @@ class PraxisTest extends FunSuite {
         n match {
           case 0 => pure(List())
           case _ => for {
-            x <- tick1
+            x <- increase0
             xs <- aux(n - 1)
           } yield x :: xs
         }
