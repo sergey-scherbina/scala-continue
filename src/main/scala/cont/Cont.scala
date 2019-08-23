@@ -146,4 +146,7 @@ object Cont {
 
   @inline def increase0[R]: Int :#: (Int => R) = access0(_ + 1)
 
+//  @inline def state1[A, S, R, RS](f: S => (A, S)): A :#: (S => R) :#: RS =
+//    shift1(k1 => shift0(k2 => ???))
+
 }

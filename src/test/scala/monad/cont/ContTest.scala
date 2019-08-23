@@ -111,7 +111,7 @@ class ContTest extends FunSuite {
     def nat(n: Int) = loop(for {
       x <- channel[Int, Int]
       _ = println("x:" + x)
-    } yield x + 1)(n) toStream
+    } yield x + 1)(n).toStream
 
     println(nat(10).take(10).toList)
   }
