@@ -1,5 +1,7 @@
 package monad
 
+import scala.language.implicitConversions
+
 package object cont {
 
   type Cont[A, B, C] = (A => B) => C
@@ -47,7 +49,7 @@ package object cont {
 
   @inline def channel[A, B]: Cont[A, B << A, B => B << A] = take[B, B << A] >>= suspend
 
-  @inline def emit0[A](a: A): Cont[Unit, List[A], List[A]] = shift0(a :: _ ())
+  @inline def emit0[A](a: A): Cont[Unit, List[A], List[A]] = shift0(a :: _ (()))
 
   @inline def emit1[A](a: A): Cont[Unit, Cont[Unit, List[A], List[A]], Cont[Unit, List[A], List[A]]] = lift(emit0(a))
 

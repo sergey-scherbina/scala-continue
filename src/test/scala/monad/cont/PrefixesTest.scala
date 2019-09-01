@@ -1,8 +1,12 @@
 package monad.cont
 
-import org.scalatest.FunSuite
+import verify._
 
-class PrefixesTest extends FunSuite {
+import scala.language.implicitConversions
+
+object PrefixesTest extends BasicTestSuite {
+
+  def ok() = Void.unit
 
   test("append") {
     def append[A](lst: List[A]): Cont[List[A], List[A], List[A] => List[A]] =
@@ -15,6 +19,8 @@ class PrefixesTest extends FunSuite {
       reset0(append(List(1, 2, 3)))
 
     println(app123(List(5, 6, 7)))
+
+    ok()
   }
 
   test("prefixes") {
@@ -31,6 +37,7 @@ class PrefixesTest extends FunSuite {
 
     println(prefixes(List(1, 2, 3)))
 
+    ok()
   }
 
   test("partition") {
@@ -60,6 +67,8 @@ class PrefixesTest extends FunSuite {
     }
 
     println(partition(3, List(4, 1, 3, 5, 2, 3)))
+
+    ok()
   }
 
   test("search tree") {
@@ -80,12 +89,9 @@ class PrefixesTest extends FunSuite {
      */
     def bfs[A](tree: SearchTree[A]): Stream[A] = {
       def loop(node: Stream[Unit => SearchTree[A]]): Stream[A] =
-        node match {
-          case Stream() => Stream()
-          case h #:: t => h() match {
-            case Leaf(x) => x #:: loop(t)
-            case Node(b) => loop(b #::: t)
-          }
+        if (node.isEmpty) Stream() else node.head(()) match {
+          case Leaf(x) => x #:: loop(node.tail)
+          case Node(b) => loop(b #::: node.tail)
         }
 
       loop(Stream(_ => tree))
@@ -149,6 +155,7 @@ class PrefixesTest extends FunSuite {
     bfs(ex2(Stream.from(1).take(100))).
       foreach(println)
 
+    ok()
   }
 
   test("prefixes2") {
@@ -254,6 +261,7 @@ class PrefixesTest extends FunSuite {
 
     println(allPrefixes2((_: Int) > 2, List(0, 3, 1, 4, 2, 5)))
 
+    ok()
   }
 
   test("prefixes3") {
@@ -375,7 +383,7 @@ class PrefixesTest extends FunSuite {
         shift2((k: Unit => List[A]) => v :: k(()))
 
       def emit1[A](v: A): Cont[Unit, List[A], List[A]] =
-        shift0((k: Unit => List[A]) => v :: k())
+        shift0((k: Unit => List[A]) => v :: k(()))
 
       //      def emit2[A, B, C](a: A): Cont[List[A], C, B] =
       //        shift((k: B => C) => reset(emit1(a)))
@@ -405,6 +413,7 @@ class PrefixesTest extends FunSuite {
       //        shift1(k => f((x: B :~> S) => pure(k(x))))
 
 
+      ok()
     }
 
     /*
@@ -478,6 +487,7 @@ class PrefixesTest extends FunSuite {
         }
     */
 
+    ok()
   }
 
   test("prefix4") {
@@ -494,6 +504,7 @@ class PrefixesTest extends FunSuite {
       }
 
     println(reset2(walk(List(1, 2, 3, 4))))
+    ok()
   }
 
   test("prefix5") {
@@ -508,6 +519,7 @@ class PrefixesTest extends FunSuite {
       }
 
     println(reset0(walk(List(1, 2, 3, 4))))
+    ok()
   }
 
   test("emitTriples") {
@@ -587,9 +599,13 @@ class PrefixesTest extends FunSuite {
     // (a -> Cps (Stm rs r) Unit) -> Cps (Stm rs r) Unit
     // (a -> (Unit -> Stm rs r) -> Stm rs r) -> (Unit -> Stm rs r) -> Stm rs r
     // Cont[A, Cont[Unit,R,R], Cont[Unit,R,R]]
+
+    ok()
   }
 
   test("prefix7") {
+
+    ok()
 
     // Cps r a = (a → r) → r
     // Stm [ ] a = a
@@ -643,6 +659,8 @@ class PrefixesTest extends FunSuite {
     //        def prefixes[A](xs: List[A]): List[List[A]] = collect(walk(xs))
     //
     //        println(prefixes(List(1, 2, 3, 4)))
+
+    ok()
   }
 
 }

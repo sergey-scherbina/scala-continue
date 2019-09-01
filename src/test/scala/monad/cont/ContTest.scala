@@ -6,13 +6,17 @@ import java.nio.channels.{AsynchronousFileChannel, CompletionHandler}
 import java.nio.charset.Charset
 import java.nio.file.Paths
 
-import org.scalatest.FunSuite
+import verify._
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.Try
 
-class ContTest extends FunSuite {
+import scala.language.implicitConversions
+
+object ContTest extends BasicTestSuite {
+
+  def ok() = Void.unit
 
   test("Fib") {
 
@@ -21,8 +25,10 @@ class ContTest extends FunSuite {
       _ <- suspend[Int, Unit](x)
     } yield (y, x + y))(1, 1)
 
-    println(fib().forAll().take(10).toList)
+    println(fib().forAll(()).take(10).toList)
     println()
+
+    ok()
   }
 
   test("Fib2") {
@@ -32,6 +38,8 @@ class ContTest extends FunSuite {
 
     println(fib().take(100).toList)
     println()
+
+    ok()
   }
 
   type IntOrStr = String Either Int
@@ -60,6 +68,8 @@ class ContTest extends FunSuite {
     println("----")
     println(d10(0))
     println("----")
+
+    ok()
   }
 
   test("take") {
@@ -77,6 +87,8 @@ class ContTest extends FunSuite {
     println(f1(10)("Hello"))
     println()
     println(f1(10)(""))
+
+    ok()
   }
 
   test("loop") {
@@ -90,6 +102,8 @@ class ContTest extends FunSuite {
     println()
     println("Loop:")
     println(f2(1))
+
+    ok()
   }
 
   test("nat") {
@@ -99,12 +113,16 @@ class ContTest extends FunSuite {
     } yield x + 1)(n)
 
     println(nat(10).take(10).toList)
+
+    ok()
   }
 
   test("nat2") {
     def nat(n: Int) = unfold(n)(_ + 1)
 
     println(nat(10).take(10).toList)
+
+    ok()
   }
 
   test("nat3") {
@@ -114,6 +132,8 @@ class ContTest extends FunSuite {
     } yield x + 1)(n) toStream
 
     println(nat(10).take(10).toList)
+
+    ok()
   }
 
   test("channel") {
@@ -123,6 +143,8 @@ class ContTest extends FunSuite {
     } yield x.toString)
 
     println(f4("Hello"))
+
+    ok()
   }
 
   test("suspend") {
@@ -135,6 +157,8 @@ class ContTest extends FunSuite {
 
     println()
     println(f4(1)(2)(3)(4))
+
+    ok()
   }
 
   test("monad reflection") {
@@ -152,6 +176,7 @@ class ContTest extends FunSuite {
 
     println(v2)
 
+    ok()
   }
 
   test("file") {
@@ -193,6 +218,7 @@ class ContTest extends FunSuite {
 
     println("exit")
 
+    ok()
   }
 
   test("futures") {
@@ -233,6 +259,7 @@ class ContTest extends FunSuite {
 
     println("exit")
 
+    ok()
   }
 
   test("asyncIO") {
@@ -253,7 +280,7 @@ class ContTest extends FunSuite {
       shift0((k: IOChunk => IOChunk) => loop(for {
         chunk <- take[IOChunk, Unit]
         r <- shift0((f: IOChunk => Unit) =>
-          chunk.fold[Unit](_ => stop(), c =>
+          chunk.fold[Unit](_ => stop(()), c =>
             channel.read(c._1, c._2, c, handler(f))))
       } yield k(r)))
 
@@ -280,6 +307,7 @@ class ContTest extends FunSuite {
 
     println("exit")
 
+    ok()
   }
 
   test("Alice has a cat.") {
@@ -294,6 +322,7 @@ class ContTest extends FunSuite {
 
     println(cat)
 
+    ok()
   }
 
 }

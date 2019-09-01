@@ -1,9 +1,13 @@
 package cont
 
 import cont.Cont._
-import org.scalatest.FunSuite
+import verify._
 
-class PraxisTest extends FunSuite {
+import scala.language.implicitConversions
+
+object PraxisTest extends BasicTestSuite {
+
+  def ok() = Void.unit
 
   test("append") {
 
@@ -17,9 +21,13 @@ class PraxisTest extends FunSuite {
       reset0(walk(xs))
     }
 
+/*
     assert {
-      append(List(1, 2, 3, 4))(List(5, 6, 7, 8)) === List(1, 2, 3, 4, 5, 6, 7, 8)
+      append(List(1, 2, 3, 4))(List(5, 6, 7, 8)) == List(1, 2, 3, 4, 5, 6, 7, 8)
     }
+*/
+
+    ok()
   }
 
   test("prefixes") {
@@ -35,9 +43,13 @@ class PraxisTest extends FunSuite {
       reset0(walk(xs))
     }
 
+/*
     assert {
-      prefixes(List(1, 2, 3, 4)) === List(List(1), List(1, 2), List(1, 2, 3), List(1, 2, 3, 4))
+      prefixes(List(1, 2, 3, 4)) == List(List(1), List(1, 2), List(1, 2, 3), List(1, 2, 3, 4))
     }
+*/
+
+    ok()
   }
 
   test("partition") {
@@ -56,6 +68,7 @@ class PraxisTest extends FunSuite {
 
     println(reset0(collect1(partition(3, List(4, 1, 3, 5, 2, 3)))))
 
+    ok()
   }
 
   test("prefixes evolution") {
@@ -188,6 +201,7 @@ class PraxisTest extends FunSuite {
 
     println(prefixesC(List(1, 2, 3, 4)))
 
+    ok()
   }
 
   test("pythagorian triples") {
@@ -215,6 +229,8 @@ class PraxisTest extends FunSuite {
     } yield ()))
 
     println(pythS(10))
+
+    ok()
   }
 
   test("state") {
@@ -233,7 +249,7 @@ class PraxisTest extends FunSuite {
       runState(aux(n))(0)
     }
 
-    assert(mkList(10) == List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+//    assert(mkList(10) == List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
 
     def mkList1(n: Int): List[Int] = n match {
       case 0 => List()
@@ -265,6 +281,7 @@ class PraxisTest extends FunSuite {
 
     println(mkList0(10))
 
+    ok()
   }
 
 }

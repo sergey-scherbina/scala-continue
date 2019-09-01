@@ -1,9 +1,11 @@
 package cont
 
 import cont.Cont._
-import org.scalatest.FunSuite
+import verify._
 
-class ReflectTest extends FunSuite {
+import scala.language.implicitConversions
+
+object ReflectTest extends BasicTestSuite {
   test("reflect list") {
 
 
@@ -46,5 +48,6 @@ class ReflectTest extends FunSuite {
       )
 
 
+    Void.unit
   }
 }

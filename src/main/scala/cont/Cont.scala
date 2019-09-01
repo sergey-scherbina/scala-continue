@@ -1,5 +1,7 @@
 package cont
 
+import scala.language.implicitConversions
+
 object Cont {
 
   type Cont[A, S, R] = (A => S) => R
@@ -40,7 +42,7 @@ object Cont {
 
   @inline def abort0[A, S, R](r: R): Cont[A, S, R] = shift0(_ => r)
 
-  @inline def fail0[A, S]: Cont[A, S, Unit] = abort0()
+  @inline def fail0[A, S]: Cont[A, S, Unit] = abort0(())
 
   @inline def amb0[A, S](a: A, b: A): Cont[A, S, Unit] = shift0 { k => k(a); k(b); () }
 
@@ -52,23 +54,23 @@ object Cont {
 
   @inline def abort1[A, B, R](b: B): A :#: B :#: R = shift1(_ => pure(b))
 
-  @inline def fail1[A, R]: A :#: Unit :#: R = abort1()
+  @inline def fail1[A, R]: A :#: Unit :#: R = abort1(())
 
   @inline def amb1[A, R](a1: A, a2: A): A :#: Unit :#: R = shift1(k => for {_ <- k(a1); _ <- k(a2)} yield ())
 
   @inline def flip1[R]: Boolean :#: Unit :#: R = amb1[Boolean, R](true, false)
 
-  @inline def emit0[A](a: A): Unit :#: List[A] = shift0(k => a :: k())
+  @inline def emit0[A](a: A): Unit :#: List[A] = shift0(k => a :: k(()))
 
-  @inline def emit1[A, R](a: A): Unit :#: List[A] :#: R = shift1(k => for (as <- k()) yield a :: as)
+  @inline def emit1[A, R](a: A): Unit :#: List[A] :#: R = shift1(k => for (as <- k(())) yield a :: as)
 
   @inline def collect0[A](m: Unit :#: List[A]): List[A] = reset0(for (_ <- m) yield List())
 
   @inline def collect1[A, R](m: Unit :#: List[A] :#: R): List[A] :#: R = reset1(for (_ <- m) yield List())
 
-  @inline def emitS0[A](a: A): Unit :#: Stream[A] = shift0(k => a #:: k())
+  @inline def emitS0[A](a: A): Unit :#: Stream[A] = shift0(k => a #:: k(()))
 
-  @inline def emitS1[A, R](a: A): Unit :#: Stream[A] :#: R = shift1(k => for (as <- k()) yield a #:: as)
+  @inline def emitS1[A, R](a: A): Unit :#: Stream[A] :#: R = shift1(k => for (as <- k(())) yield a #:: as)
 
   @inline def collectS0[A](m: Unit :#: Stream[A]): Stream[A] = reset0(for (_ <- m) yield Stream())
 
