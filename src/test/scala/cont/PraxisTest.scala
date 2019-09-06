@@ -190,32 +190,6 @@ class PraxisTest extends FunSuite {
 
   }
 
-  test("pythagorian triples") {
-
-    def triple(x: Int, y: Int, z: Int): Unit :#: Unit :#: List[(Int, Int, Int)] =
-      if (x * x + y * y == z * z) emit0((x, y, z)).lift else fail1
-
-    def pyth(n: Int): List[(Int, Int, Int)] = collect0(reset1(for {
-      x <- (1 to n).toList.reflect0.lift
-      y <- (x to n).toList.reflect0.lift
-      z <- (y to n).toList.reflect0.lift
-      _ <- triple(x, y, z)
-    } yield ()))
-
-    println(pyth(10))
-
-    def tripleS(x: Int, y: Int, z: Int): Unit :#: Unit :#: Stream[(Int, Int, Int)] =
-      if (x * x + y * y == z * z) emitS0((x, y, z)).lift else fail1
-
-    def pythS(n: Int): Stream[(Int, Int, Int)] = collectS0(reset1(for {
-      x <- (1 to n).toStream.reflect0.lift
-      y <- (x to n).toStream.reflect0.lift
-      z <- (y to n).toStream.reflect0.lift
-      _ <- tripleS(x, y, z)
-    } yield ()))
-
-    println(pythS(10))
-  }
 
   test("state") {
 
@@ -265,6 +239,21 @@ class PraxisTest extends FunSuite {
 
     println(mkList0(10))
 
+  }
+
+  test("nondet") {
+
+    def tripl0(a: Int, b: Int, c: Int): Unit :#: List[(Int, Int, Int)] =
+      if (a * a + b * b == c * c) emit0((a, b, c)) else pure(())
+
+    def pyth0(n: Int): List[(Int, Int, Int)] = collect0(for {
+      x <- (1 to n).toList.reflect0
+      y <- (x to n).toList.reflect0
+      z <- (y to n).toList.reflect0
+      _ <- tripl0(x, y, z)
+    } yield ())
+
+    println(pyth0(10))
   }
 
 }
