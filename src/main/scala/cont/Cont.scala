@@ -3,7 +3,7 @@ package cont
 object Cont {
 
   type Cont[A, S, R] = (A => S) => R
-  type :#:[A, R] = Cont[A, R, R]
+  type :#:[A, R] = (A => R) => R
 
   @inline def pure[A, R](a: A): A :#: R = _ (a)
 
@@ -63,13 +63,13 @@ object Cont {
 
   @inline def collect1[A, R](m: Unit :#: List[A] :#: R): List[A] :#: R = reset1(for (_ <- m) yield List())
 
-  @inline def emitS0[A](a: A): Unit :#: Stream[A] = shift0(k => a #:: k())
+  @inline def emitZ0[A](a: A): Unit :#: LazyList[A] = shift0(k => a #:: k())
 
-  @inline def emitS1[A, R](a: A): Unit :#: Stream[A] :#: R = shift1(k => for (as <- k()) yield a #:: as)
+  @inline def emitZ1[A, R](a: A): Unit :#: LazyList[A] :#: R = shift1(k => for (as <- k()) yield a #:: as)
 
-  @inline def collectS0[A](m: Unit :#: Stream[A]): Stream[A] = reset0(for (_ <- m) yield Stream())
+  @inline def collectZ0[A](m: Unit :#: LazyList[A]): LazyList[A] = reset0(for (_ <- m) yield LazyList())
 
-  @inline def collectS1[A, R](m: Unit :#: Stream[A] :#: R): Stream[A] :#: R = reset1(for (_ <- m) yield Stream())
+  @inline def collectZ1[A, R](m: Unit :#: LazyList[A] :#: R): LazyList[A] :#: R = reset1(for (_ <- m) yield LazyList())
 
   trait Reflection[F[_]] {
     def reflect0[A, B](m: F[A]): A :#: F[B]
@@ -107,15 +107,15 @@ object Cont {
     @inline override def reify1[A, R](m: A :#: List[A] :#: R): List[A] :#: R = m(a => pure(List(a)))
   }
 
-  implicit object StreamReflection extends Reflection[Stream] {
-    @inline override def reflect0[A, B](m: Stream[A]): A :#: Stream[B] = shift0(m.flatMap(_))
+  implicit object LazyListReflection extends Reflection[LazyList] {
+    @inline override def reflect0[A, B](m: LazyList[A]): A :#: LazyList[B] = shift0(m.flatMap(_))
 
-    @inline override def reify0[A](m: A :#: Stream[A]): Stream[A] = m(Stream(_))
+    @inline override def reify0[A](m: A :#: LazyList[A]): LazyList[A] = m(LazyList(_))
 
-    @inline def reflect1[A, B, R](m: Stream[A]): A :#: Stream[B] :#: Stream[R] =
+    @inline def reflect1[A, B, R](m: LazyList[A]): A :#: LazyList[B] :#: LazyList[R] =
       shift1(k1 => shift0(k2 => m.flatMap(k1(_)(k2))))
 
-    @inline override def reify1[A, R](m: A :#: Stream[A] :#: R): Stream[A] :#: R = m(a => pure(Stream(a)))
+    @inline override def reify1[A, R](m: A :#: LazyList[A] :#: R): LazyList[A] :#: R = m(a => pure(LazyList(a)))
   }
 
   @inline def project0[A, B, C](fa: A :#: B)(br: B => C)(rb: C => B): A :#: C =
