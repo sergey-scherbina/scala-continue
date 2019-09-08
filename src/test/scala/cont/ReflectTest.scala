@@ -47,4 +47,43 @@ class ReflectTest extends FunSuite {
 
 
   }
+
+  test("test1") {
+
+    // 1 + ⟨10 + S0k.100 + k (k 0)⟩
+
+    def f1() = 1 + reset0(fmap(
+      shift0((k: Int => Int) =>
+        100 + k(k(0))))((x: Int) =>
+      x + 10))
+
+    println(f1())
+    assert( f1() === 121)
+
+    /*
+    ⟨1 + ⟨10 × S0k1.S0k2.k1 (k2 0)⟩⟩
+     */
+
+    def f2() = {
+      reset0(fmap(reset0(fmap(shift0((k1: Int => Int) =>
+        shift0((k2: Int => Int) => k1(k2(0)))))(_ * 10)))(_ + 1))
+    }
+
+    println(f2())
+    assert( f2() === 10)
+
+    def f3() = {
+      fmap(fmap(shift0((k1: Int => Int) => shift0((k2: Int => Int) => k1(k2(0)))))(_ * 10))(_ + 1)
+    }
+
+    def f4() = {
+      shift0((k1: Int => Int) => shift0((k2: Int => Int) => k1(k2(0)))).map(_ * 10).map(_ + 1)
+    }
+
+    def f5() = {
+      shift0((k1: Int => Int) => shift0((k2: Int => Int) => k1(k2(0)))).map(_ * 10).map(_ + 1)
+    }
+
+  }
+
 }
