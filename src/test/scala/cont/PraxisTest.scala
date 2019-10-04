@@ -275,23 +275,31 @@ class PraxisTest extends FunSuite {
     case class Leaf[A](a: A) extends Tree[A]
     case class Node[A](l: Tree[A], r: Tree[A]) extends Tree[A]
 
-    def gen1[A](t: Tree[A]): Gen[A] = {
-      def visit(t: Tree[A], g: Unit => Gen[A]): Gen[A] = t match {
-        case Leaf(a) => Next(a, g)
-        case Node(t1, t2) => visit(t1, _ => visit(t2, g))
+    def gen0[A](t: Tree[A]): List[A] = {
+      def visit(t: Tree[A]): List[A] = t match {
+        case Leaf(a) => List(a)
+        case Node(t1, t2) => visit(t1) ++ visit(t2)
       }
 
-      visit(t, _ => End())
+      visit(t)
+    }
+
+    def gen1[A](t: Tree[A]): Gen[A] = {
+      def visit(t: Tree[A])(g: Unit => Gen[A]): Gen[A] = t match {
+        case Leaf(a) => Next(a, g)
+        case Node(t1, t2) => visit(t1)(_ => visit(t2)(g))
+      }
+
+      visit(t)(_ => End())
     }
 
     def gen2[A](t: Tree[A]): Gen[A] = {
       def visit(t: Tree[A]): Unit :#: Gen[A] = t match {
         case Leaf(a) => shift0(Next(a, _))
-        case Node(t1, t2) => for (_ <- visit(t1))
-          yield visit(t2)
+        case Node(t1, t2) => visit(t1) >> visit(t2)
       }
 
-      reset0(for (_ <- visit(t)) yield End[A]())
+      reset0(visit(t) >>> End[A]())
     }
 
     val t1 = Node(Node(Leaf(1), Leaf(2)), Leaf(3))

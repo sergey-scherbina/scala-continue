@@ -18,6 +18,10 @@ object Cont {
 
     @inline def >>=[B, C](f: A => Cont[B, C, S]): Cont[B, C, R] = bind(c)(f)
 
+    @inline def >>[B, C](c2: Cont[B, C, S]): Cont[B, C, R] = bind(c)(_ => c2)
+
+    @inline def >>>(s: S): Cont[S, S, R] = bind(c)(_ => pure[S, S](s))
+
     @inline def map[B](f: A => B): Cont[B, S, R] = bind(c)(a => pure(f(a)))
   }
 
