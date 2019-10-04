@@ -3,6 +3,8 @@ package cont
 import cont.Cont._
 import org.scalatest.FunSuite
 
+import scala.annotation.tailrec
+
 class PraxisTest extends FunSuite {
 
   test("append") {
@@ -254,6 +256,50 @@ class PraxisTest extends FunSuite {
     } yield ())
 
     println(pyth0(10))
+  }
+
+  test("same fringe") {
+    sealed trait Gen[A]
+    case class End[A]() extends Gen[A]
+    case class Next[A](a: A, n: Unit => Gen[A]) extends Gen[A]
+
+    @tailrec
+    def same[A](g1: Gen[A], g2: Gen[A]): Boolean = (g1, g2) match {
+      case (End(), End()) => true
+      case (Next(a1, n1), Next(a2, n2))
+        if (a1 == a2) => same(n1(), n2())
+      case _ => false
+    }
+
+    sealed trait Tree[A]
+    case class Leaf[A](a: A) extends Tree[A]
+    case class Node[A](l: Tree[A], r: Tree[A]) extends Tree[A]
+
+    def gen1[A](t: Tree[A]): Gen[A] = {
+      def visit(t: Tree[A], g: Unit => Gen[A]): Gen[A] = t match {
+        case Leaf(a) => Next(a, g)
+        case Node(t1, t2) => visit(t1, _ => visit(t2, g))
+      }
+
+      visit(t, _ => End())
+    }
+
+    def gen2[A](t: Tree[A]): Gen[A] = {
+      def visit(t: Tree[A]): Unit :#: Gen[A] = t match {
+        case Leaf(a) => shift0(Next(a, _))
+        case Node(t1, t2) => for (_ <- visit(t1))
+          yield visit(t2)
+      }
+
+      reset0(for (_ <- visit(t)) yield End[A]())
+    }
+
+    val t1 = Node(Node(Leaf(1), Leaf(2)), Leaf(3))
+    val t2 = Node(Leaf(1), Node(Leaf(2), Leaf(3)))
+
+    println(same(gen1(t1), gen1(t2)))
+    println(same(gen2(t1), gen2(t2)))
+
   }
 
 }
