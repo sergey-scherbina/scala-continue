@@ -23,6 +23,42 @@ class PipesTest extends FunSuite {
 
   }
 
+  test("pipes1") {
+
+    trait InCont[I] extends (OutCont[I] => Unit)
+    trait OutCont[O] extends (O => InCont[O] => Unit)
+    type Pipe[I, O, A] = A :#: (InCont[I] => OutCont[O] => Unit)
+
+    def inCont[I](k: OutCont[I] => Unit): InCont[I] = k(_)
+
+    def outCont[O](k: O => InCont[O] => Unit): OutCont[O] = k(_)
+
+    def input[I, O]: Pipe[I, O, I] = k => ki => ko =>
+      ki(outCont(i => ki1 => k(i)(ki1)(ko)))
+
+    def output[I, O](o: O): Pipe[I, O, Unit] = k => ki => ko =>
+      ko(o)(inCont(ko1 => k()(ki)(ko1)))
+
+    def merge[I, O, M, A](p: Pipe[I, M, A], q: Pipe[M, O, A]): Pipe[I, O, A] =
+      k => ki => ko => q(_ => ???)(inCont(ko1 => p(_ => ???)(ki)(ko1)))(ko)
+
+    def double[A]: Pipe[Int, Int, A] = for (
+      i <- input[Int, Int];
+      _ <- output[Int, Int](i * 2);
+      x <- double[A]) yield x
+
+    def quad[A]: Pipe[Int, Int, A] = merge(double, double)
+
+    def runPipeIO[I: Read, O](p: Pipe[I, O, Unit])(r: BufferedReader) = {
+      lazy val ki: InCont[I] = inCont(_ (Read[I].readLine(r))(ki))
+      lazy val ko: OutCont[O] = outCont { o => ki => println(o); ki(ko) }
+      p(_ => _ => _ => ())(ki)(ko)
+    }
+
+    Try(runPipeIO(quad)(new BufferedReader(new StringReader("10\n20"))))
+
+  }
+
   test("pipes") {
 
     case class InCont[I](resume: OutCont[I] => Unit)
