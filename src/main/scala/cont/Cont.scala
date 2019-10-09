@@ -11,7 +11,7 @@ object Cont {
     k => c(f(_)(k))
 
   @inline def fmap[A, S, R, B](c: (A => S) => R)(f: A => B): (B => S) => R =
-    bind(c)(a => pure(f(a)))
+    k => c(a => k(f(a)))
 
   implicit class ContMonad[A, S, R](val c: (A => S) => R) extends AnyVal {
     @inline def flatMap[B, C](f: A => Cont[B, C, S]): Cont[B, C, R] = bind(c)(f)
