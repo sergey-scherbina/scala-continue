@@ -67,8 +67,13 @@ object Pipes2 extends App {
     ko(o)(InCont(_ => k1 => k()(ki)(k1))))
 
   def merge[I, O, M, A](p: Pipe[I, M, A], q: Pipe[M, O, A]): Pipe[I, O, A] =
-    shift(k => ki => ko => q.cont.result(_ => ???).result.apply(
-      InCont(_ => k1 => p.cont.result(_ => ???).result.apply(ki)(k1)))(ko))
+    shift(k => ki => ko =>
+      q.cont.flatMap(_ (_ => ???))
+        .flatMap(_ (
+          InCont(_ => k1 => p.cont
+            .flatMap(_ (_ => ???))
+            .flatMap(_ (ki)(k1)))
+        )(ko)))
 
   def runPipeIO[I: Read, O](p: Pipe[I, O, Unit])(r: BufferedReader) = {
     lazy val ki: InCont[I] = InCont(_ => _ (Read[I].readLine(r))(ki))
