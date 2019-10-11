@@ -13,10 +13,10 @@ object Pipes2 extends App {
 
   final case class Cont[A, S, R](cont: ![(A =>> S) =>> R]) extends AnyVal {
     @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] =
-      Cont(done(k => cont.flatMap(_ (f(_).cont.flatMap(_ (k))))))
+      Cont(done(k => cont.flatMap(_ (a => tailcall(f(a).cont.flatMap(_ (k)))))))
 
     @inline def map[B](f: A => B): Cont[B, S, R] =
-      Cont(done(k => cont.flatMap(_ (a => k(f(a))))))
+      Cont(done(k => cont.flatMap(_ (a => tailcall(k(f(a)))))))
 
     @inline def >>=[B, C](f: A => Cont[B, C, S]): Cont[B, C, R] = flatMap(f)
 
@@ -85,5 +85,17 @@ object Pipes2 extends App {
   def quad(): Pipe[Int, Int, Unit] = merge(double(), double())
 
   runPipeIO(quad())(new BufferedReader(new StringReader("1\n" * 10000)))
+
+  def append[A](xs: List[A]): List[A] =>> List[A] = {
+
+    def walk: List[A] =>> Cont[List[A], List[A], List[A] =>> List[A]] = {
+      case List() => done(shift0(done))
+      case h :: t => tailcall(walk(t).map(_.map(h :: _)))
+    }
+
+    reset(walk(xs).result)(_)
+  }
+
+  println(append(List.fill(10000)(1))(List(5, 6, 7, 8)).result.length)
 
 }
