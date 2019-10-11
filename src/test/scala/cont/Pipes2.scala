@@ -33,17 +33,15 @@ object Pipes2 extends App {
 
   @inline final def reset[A, R](k: Cont[A, A, R]): R = k.cont.result(done).result
 
-  type ~>[A, B] = A => B => ![Unit]
-
   trait InCont[I] extends (OutCont[I] =>> Unit)
 
   def InCont[I](k: OutCont[I] =>> Unit): InCont[I] = k(_)
 
-  trait OutCont[O] extends (O ~> InCont[O])
+  trait OutCont[O] extends (O => InCont[O] =>> Unit)
 
-  def OutCont[O](k: O ~> InCont[O]): OutCont[O] = k(_)
+  def OutCont[O](k: O => InCont[O] =>> Unit): OutCont[O] = k(_)
 
-  type Pipe[I, O, A] = A :#: (InCont[I] ~> OutCont[O])
+  type Pipe[I, O, A] = A :#: (InCont[I] => OutCont[O] =>> Unit)
 
   def input[I, O]: Pipe[I, O, I] = shift(k => ki => ko =>
     ki(OutCont(i => k1 => tailcall(k(i)(k1)(ko)))))
