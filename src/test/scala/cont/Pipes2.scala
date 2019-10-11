@@ -9,6 +9,7 @@ object Pipes2 extends App {
 
   type ![A] = TailRec[A]
   type =>>[A, B] = A => ![B]
+  type :#:[A, R] = Cont[A, R, R]
 
   final case class Cont[A, S, R](cont: ![(A =>> S) =>> R]) extends AnyVal {
     @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] =
@@ -24,8 +25,6 @@ object Pipes2 extends App {
     @inline def >>>(s: S): Cont[S, S, R] = map(_ => s)
   }
 
-  type :#:[A, R] = Cont[A, R, R]
-
   @inline final def pure[A, R](a: A): A :#: R = Cont(done(_ (a)))
 
   @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = Cont(done(k))
@@ -36,9 +35,9 @@ object Pipes2 extends App {
 
   type ~>[A, B] = A => B => ![Unit]
 
-  trait InCont[I] extends (Unit ~> OutCont[I])
+  trait InCont[I] extends (OutCont[I] =>> Unit)
 
-  def InCont[I](k: (Unit ~> OutCont[I])): InCont[I] = k(_)
+  def InCont[I](k: OutCont[I] =>> Unit): InCont[I] = k(_)
 
   trait OutCont[O] extends (O ~> InCont[O])
 
@@ -47,18 +46,33 @@ object Pipes2 extends App {
   type Pipe[I, O, A] = A :#: (InCont[I] ~> OutCont[O])
 
   def input[I, O]: Pipe[I, O, I] = shift(k => ki => ko =>
-    ki()(OutCont(i => k1 => tailcall(k(i)(k1)(ko)))))
+    ki(OutCont(i => k1 => tailcall(k(i)(k1)(ko)))))
 
   def output[I, O](o: O): Pipe[I, O, Unit] = shift(k => ki => ko =>
-    ko(o)(InCont(_ => k1 => tailcall(k()(ki)(k1)))))
+    ko(o)(InCont(k1 => tailcall(k()(ki)(k1)))))
 
   def merge[I, O, M, A](p: Pipe[I, M, A], q: Pipe[M, O, A]): Pipe[I, O, A] =
     shift(k => ki => ko => q.cont.flatMap(_ (_ => ???)).flatMap(_ (
-      InCont(_ => k1 => p.cont.flatMap(_ (_ => ???)).flatMap(_ (ki)(k1))))(ko)))
+      InCont(k1 => p.cont.flatMap(_ (_ => ???)).flatMap(_ (ki)(k1))))(ko)))
+
+  trait Read[A] {
+    def read(s: String): Option[A]
+
+    @inline def readLine(r: BufferedReader): Option[A] = read(r.readLine())
+  }
+
+  object Read {
+    def apply[A: Read]: Read[A] = implicitly[Read[A]]
+
+    implicit object readInt extends Read[Int] {
+      @inline override def read(s: String): Option[Int] = Try(s.toInt).toOption
+    }
+
+  }
 
   def runPipeIO[I: Read, O](p: Pipe[I, O, Unit])(r: BufferedReader): Unit = {
-    lazy val ki: InCont[I] = InCont(_ => k => Read[I].readLine(r).fold(done())(k(_)(ki)))
-    lazy val ko: OutCont[O] = OutCont { o => k => println(o); k()(ko) }
+    lazy val ki: InCont[I] = InCont(k => Read[I].readLine(r).fold(done())(k(_)(ki)))
+    lazy val ko: OutCont[O] = OutCont { o => k => println(o); k(ko) }
     p.cont.flatMap(_ (_ => done(_ => _ => done())).flatMap(_ (ki)(ko))).result
   }
 
@@ -71,21 +85,6 @@ object Pipes2 extends App {
   } yield ()
 
   def quad(): Pipe[Int, Int, Unit] = merge(double(), double())
-
-  trait Read[A] {
-    def read(s: String): Option[A]
-
-    def readLine(r: BufferedReader): Option[A] = read(r.readLine())
-  }
-
-  object Read {
-    def apply[A: Read]: Read[A] = implicitly[Read[A]]
-
-    implicit object readInt extends Read[Int] {
-      override def read(s: String): Option[Int] = Try(s.toInt).toOption
-    }
-
-  }
 
   runPipeIO(quad())(new BufferedReader(new StringReader("1\n" * 10000)))
 
