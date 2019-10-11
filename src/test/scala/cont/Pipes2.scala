@@ -57,7 +57,7 @@ object Pipes2 extends App {
       InCont(_ => k1 => p.cont.flatMap(_ (_ => ???)).flatMap(_ (ki)(k1))))(ko)))
 
   def runPipeIO[I: Read, O](p: Pipe[I, O, Unit])(r: BufferedReader): Unit = {
-    lazy val ki: InCont[I] = InCont(_ => k => (k(Read[I].readLine(r))(ki)))
+    lazy val ki: InCont[I] = InCont(_ => k => Read[I].readLine(r).fold(done())(k(_)(ki)))
     lazy val ko: OutCont[O] = OutCont { o => k => println(o); k()(ko) }
     p.cont.flatMap(_ (_ => done(_ => _ => done())).flatMap(_ (ki)(ko))).result
   }
@@ -73,22 +73,20 @@ object Pipes2 extends App {
   def quad(): Pipe[Int, Int, Unit] = merge(double(), double())
 
   trait Read[A] {
-    def read(s: String): A
+    def read(s: String): Option[A]
 
-    def readLine(r: BufferedReader): A = read(r.readLine())
+    def readLine(r: BufferedReader): Option[A] = read(r.readLine())
   }
 
   object Read {
     def apply[A: Read]: Read[A] = implicitly[Read[A]]
 
     implicit object readInt extends Read[Int] {
-      override def read(s: String): Int = s.toInt
+      override def read(s: String): Option[Int] = Try(s.toInt).toOption
     }
 
   }
 
-  Try(
-    runPipeIO(quad())(new BufferedReader(new StringReader("1\n" * 10000)))
-  )
+  runPipeIO(quad())(new BufferedReader(new StringReader("1\n" * 10000)))
 
 }
