@@ -10,10 +10,10 @@ object Pipes2 extends App {
   type ![A] = TailRec[A]
   type =>>[A, B] = A => ![B]
   type :#:[A, R] = Cont[A, R, R]
-  @inline final def pure[A, R](a: A): A :#: R = shift0(_ (a))
   @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = Cont(done(k))
   @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
-  @inline final def reset[A, R](k: Cont[A, A, R]): R = k.cont.result(done).result
+  @inline final def reset[A, R](k: Cont[A, A, R]): R = k.run(done).result
+  @inline final def pure[A, R](a: A): A :#: R = shift0(_ (a))
   final case class Cont[A, S, R](cont: ![(A =>> S) =>> R]) extends AnyVal {
     @inline def run(f: A =>> S): ![R] = cont.flatMap(_ (a => tailcall(f(a))))
     @inline def bind[B, S1](f: A => (B =>> S1) =>> S): Cont[B, S1, R] = shift0(k => run(f(_)(k)))
