@@ -52,7 +52,7 @@ object Pipes2 extends App {
     }
   }
 
-  def runPipeIO[I: Read, O](p: Pipe[I, O, Unit])(r: BufferedReader): Unit = {
+  def runPipeUnsafe[I: Read, O](p: Pipe[I, O, Unit])(r: BufferedReader): Unit = {
     lazy val ki: InCont[I] = InCont(k => Read[I].readLine(r).fold(done())(k(_)(ki)))
     lazy val ko: OutCont[O] = OutCont { o => k => println(o); k(ko) }
     runPipe(p)(ki)(ko).result
@@ -77,7 +77,7 @@ object Pipes2 extends App {
 
   def quad(): Pipe[Int, Int, Unit] = merge(double(), double())
 
-  runPipeIO(quad())(new BufferedReader(new StringReader("1\n" * 10000)))
+  runPipeUnsafe(quad())(new BufferedReader(new StringReader("1\n" * 10000)))
 
   println(append(List.fill(10000)(1))(List(5, 6, 7, 8)).result.length)
 }
