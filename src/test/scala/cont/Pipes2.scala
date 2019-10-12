@@ -37,9 +37,8 @@ object Pipes2 extends App {
     ko(o)(InCont(k1 => tailcall(k()(ki)(k1)))))
 
   def merge[I, O, M, A](p: Pipe[I, M, A], q: Pipe[M, O, A]): Pipe[I, O, A] =
-    shift(k => ki => ko => q.run(_ => ???)
-      .flatMap(_ (InCont(k1 => p.run(_ => ???)
-        .flatMap(_ (ki)(k1))))(ko)))
+    shift(_ => ki => ko => q.run(_ => ???).flatMap(_ (InCont(
+      k1 => p.run(_ => ???).flatMap(_ (ki)(k1))))(ko)))
 
   def runPipe[I, O, A](p: Pipe[I, O, A])(ki: InCont[I])(ko: OutCont[O]): Unit =
     p.run(_ => done(_ => _ => done())).result(ki)(ko).result
