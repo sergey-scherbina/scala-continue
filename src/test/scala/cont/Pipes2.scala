@@ -12,12 +12,12 @@ object Pipes2 extends App {
   type :#:[A, R] = Cont[A, R, R]
   @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = Cont(done(k))
   @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
-  @inline final def reset[A, R](k: Cont[A, A, R]): R = k.run(done).result
+  @inline final def reset[A, R](k: Cont[A, A, R]): R = k(done).result
   @inline final def pure[A, R](a: A): A :#: R = shift0(_ (a))
   final case class Cont[A, S, R](cont: ![(A =>> S) =>> R]) extends AnyVal {
-    @inline def run(f: A =>> S): ![R] = cont.flatMap(_ (a => tailcall(f(a))))
-    @inline def bind[B, S1](f: A => (B =>> S1) =>> S): Cont[B, S1, R] = shift0(k => run(f(_)(k)))
-    @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] = bind(a => f(a).run)
+    @inline def apply(f: A =>> S): ![R] = cont.flatMap(_ (a => tailcall(f(a))))
+    @inline def bind[B, S1](f: A => (B =>> S1) =>> S): Cont[B, S1, R] = shift0(k => apply(f(_)(k)))
+    @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] = bind(a => f(a)(_))
     @inline def map[B](f: A => B): Cont[B, S, R] = bind(a => _ (f(a)))
     @inline def >>=[B, C](f: A => Cont[B, C, S]): Cont[B, C, R] = flatMap(f)
     @inline def >>[B, C](c2: Cont[B, C, S]): Cont[B, C, R] = flatMap(_ => c2)
@@ -35,10 +35,10 @@ object Pipes2 extends App {
   @inline def output[I, O](o: O): Pipe[I, O, Unit] = shift(k => ki => ko =>
     ko(o)(InCont(k1 => tailcall(k()(ki)(k1)))))
   @inline def merge[I, O, M, A](p: Pipe[I, M, A], q: Pipe[M, O, A]): Pipe[I, O, A] =
-    shift(_ => ki => ko => q.run(_ => ???).flatMap(_ (InCont(
-      k1 => p.run(_ => ???).flatMap(_ (ki)(k1))))(ko)))
+    shift(_ => ki => ko => q(_ => ???).flatMap(_ (InCont(
+      k1 => p(_ => ???).flatMap(_ (ki)(k1))))(ko)))
   @inline def runPipe[I, O, A](p: Pipe[I, O, A]): PipeCont[I, O] =
-    ki => ko => p.run(_ => done(_ => _ => done())).result(ki)(ko)
+    ki => ko => p(_ => done(_ => _ => done())).result(ki)(ko)
 
   trait Read[A] {
     def read(s: String): Option[A]
