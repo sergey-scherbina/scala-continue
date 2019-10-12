@@ -2,8 +2,6 @@ package cont
 
 import java.io.{BufferedReader, StringReader}
 
-import cont.Cont.:#:
-
 import scala.util.Try
 import scala.util.control.TailCalls._
 
