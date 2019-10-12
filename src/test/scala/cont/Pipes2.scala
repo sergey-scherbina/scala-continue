@@ -2,6 +2,8 @@ package cont
 
 import java.io.{BufferedReader, StringReader}
 
+import cont.Cont.:#:
+
 import scala.util.Try
 import scala.util.control.TailCalls._
 
@@ -10,40 +12,24 @@ object Pipes2 extends App {
   type ![A] = TailRec[A]
   type =>>[A, B] = A => ![B]
   type :#:[A, R] = Cont[A, R, R]
-
-  @inline final def pure[A, R](a: A): A :#: R = Cont(done(_ (a)))
-
+  @inline final def pure[A, R](a: A): A :#: R = shift0(_ (a))
+  @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = Cont(done(k))
+  @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
+  @inline final def reset[A, R](k: Cont[A, A, R]): R = k.cont.result(done).result
   final case class Cont[A, S, R](cont: ![(A =>> S) =>> R]) extends AnyVal {
-    @inline def bind[B, S1](f: A => (B =>> S1) =>> S): Cont[B, S1, R] =
-      Cont(done(k => cont.flatMap(_ (a => tailcall(f(a)(k))))))
-
-    @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] =
-      bind(a => k => f(a).cont.flatMap(_ (k)))
-
+    @inline def run(f: A =>> S): ![R] = cont.flatMap(_ (a => tailcall(f(a))))
+    @inline def bind[B, S1](f: A => (B =>> S1) =>> S): Cont[B, S1, R] = shift0(k => run(f(_)(k)))
+    @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] = bind(a => f(a).run)
     @inline def map[B](f: A => B): Cont[B, S, R] = bind(a => _ (f(a)))
-
     @inline def >>=[B, C](f: A => Cont[B, C, S]): Cont[B, C, R] = flatMap(f)
-
     @inline def >>[B, C](c2: Cont[B, C, S]): Cont[B, C, R] = flatMap(_ => c2)
-
     @inline def >>>(s: S): Cont[S, S, R] = map(_ => s)
   }
 
-
-  @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = Cont(done(k))
-
-  @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
-
-  @inline final def reset[A, R](k: Cont[A, A, R]): R = k.cont.result(done).result
-
   trait InCont[I] extends (OutCont[I] =>> Unit)
-
   def InCont[I](k: OutCont[I] =>> Unit): InCont[I] = k(_)
-
   trait OutCont[O] extends (O => InCont[O] =>> Unit)
-
   def OutCont[O](k: O => InCont[O] =>> Unit): OutCont[O] = k(_)
-
   type Pipe[I, O, A] = A :#: (InCont[I] => OutCont[O] =>> Unit)
 
   def input[I, O]: Pipe[I, O, I] = shift(k => ki => ko =>
