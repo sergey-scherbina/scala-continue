@@ -58,7 +58,7 @@ object Pipes2 extends App {
   def runPipeIO[I: Read, O](p: Pipe[I, O, Unit])(r: BufferedReader): Unit = {
     lazy val ki: InCont[I] = InCont(k => Read[I].readLine(r).fold(done())(k(_)(ki)))
     lazy val ko: OutCont[O] = OutCont { o => k => println(o); k(ko) }
-    p.cont.flatMap(_ (_ => done(_ => _ => done())).flatMap(_ (ki)(ko))).result
+    p.run(_ => done(_ => _ => done())).flatMap(_ (ki)(ko)).result
   }
 
   //////
