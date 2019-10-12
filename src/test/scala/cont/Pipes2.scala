@@ -11,12 +11,16 @@ object Pipes2 extends App {
   type =>>[A, B] = A => ![B]
   type :#:[A, R] = Cont[A, R, R]
 
-  final case class Cont[A, S, R](cont: ![(A =>> S) =>> R]) extends AnyVal {
-    @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] =
-      Cont(done(k => cont.flatMap(_ (a => tailcall(f(a).cont.flatMap(_ (k)))))))
+  @inline final def pure[A, R](a: A): A :#: R = Cont(done(_ (a)))
 
-    @inline def map[B](f: A => B): Cont[B, S, R] =
-      Cont(done(k => cont.flatMap(_ (a => tailcall(k(f(a)))))))
+  final case class Cont[A, S, R](cont: ![(A =>> S) =>> R]) extends AnyVal {
+    @inline def bind[B, S1](f: A => (B =>> S1) =>> S): Cont[B, S1, R] =
+      Cont(done(k => cont.flatMap(_ (a => tailcall(f(a)(k))))))
+
+    @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] =
+      bind(a => k => f(a).cont.flatMap(_ (k)))
+
+    @inline def map[B](f: A => B): Cont[B, S, R] = bind(a => _ (f(a)))
 
     @inline def >>=[B, C](f: A => Cont[B, C, S]): Cont[B, C, R] = flatMap(f)
 
@@ -25,7 +29,6 @@ object Pipes2 extends App {
     @inline def >>>(s: S): Cont[S, S, R] = map(_ => s)
   }
 
-  @inline final def pure[A, R](a: A): A :#: R = Cont(done(_ (a)))
 
   @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = Cont(done(k))
 
