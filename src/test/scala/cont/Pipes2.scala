@@ -10,10 +10,12 @@ object Pipes2 extends App {
   type ![A] = TailRec[A]
   type =>>[A, B] = A => ![B]
   type :#:[A, R] = Cont[A, R, R]
+
   @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = Cont(done(k))
   @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
   @inline final def reset[A, R](k: Cont[A, A, R]): R = k(done).result
   @inline final def pure[A, R](a: A): A :#: R = shift0(_ (a))
+
   final case class Cont[A, S, R](cont: ![(A =>> S) =>> R]) extends AnyVal {
     @inline def apply(f: A =>> S): ![R] = cont.flatMap(_ (a => tailcall(f(a))))
     @inline def bind[B, S1](f: A => (B =>> S1) =>> S): Cont[B, S1, R] = shift0(k => apply(f(_)(k)))
@@ -30,15 +32,16 @@ object Pipes2 extends App {
   @inline def OutCont[O](k: O => InCont[O] =>> Unit): OutCont[O] = k(_)
   type PipeCont[I, O] = InCont[I] => OutCont[O] =>> Unit
   type Pipe[I, O, A] = A :#: PipeCont[I, O]
-  @inline def input[I, O]: Pipe[I, O, I] = shift(k => ki => ko =>
-    ki(OutCont(i => k1 => tailcall(k(i)(k1)(ko)))))
-  @inline def output[I, O](o: O): Pipe[I, O, Unit] = shift(k => ki => ko =>
-    ko(o)(InCont(k1 => tailcall(k()(ki)(k1)))))
+
+  @inline def input[I, O]: Pipe[I, O, I] = shift0(k => done(ki => ko =>
+    ki(OutCont(i => k1 => tailcall(k(i).flatMap(_ (k1)(ko)))))))
+  @inline def output[I, O](o: O): Pipe[I, O, Unit] = shift0(k => done(ki => ko =>
+    ko(o)(InCont(k1 => tailcall(k().flatMap(_ (ki)(k1)))))))
   @inline def merge[I, O, M, A](p: Pipe[I, M, A], q: Pipe[M, O, A]): Pipe[I, O, A] =
-    shift(_ => ki => ko => q(_ => ???).flatMap(_ (InCont(
-      k1 => p(_ => ???).flatMap(_ (ki)(k1))))(ko)))
+    shift0(_ => done(ki => ko => q(_ => ???).flatMap(_ (InCont(k1 =>
+      p(_ => ???).flatMap(_ (ki)(k1))))(ko))))
   @inline def runPipe[I, O, A](p: Pipe[I, O, A]): PipeCont[I, O] =
-    ki => ko => p(_ => done(_ => _ => done())).result(ki)(ko)
+    ki => ko => p(_ => done(_ => _ => done())).flatMap(_ (ki)(ko))
 
   trait Read[A] {
     def read(s: String): Option[A]
