@@ -137,12 +137,13 @@ object Cont {
     for (x <- return1[A, B, R](a1); y <- return1[A, B, R](a1)) yield (x, y)
 
   @inline def state0[A, S, R](f: S => (A, S)): A :#: (S => R) =
-    ???
   //    shift0(k => s => Function.uncurried(k).tupled(f(s)))
+    shift0(k => done(s => f(s) match {
+      case (a, s1) => k(a).result(s1)
+    }))
 
   @inline def runState[S, R](e: R :#: (S => R)): S => R =
-    ???
-  //    e(k => _ => k)
+    e(k => done(_ => k)).result
 
   @inline def access0[A, S, R](f: S => S): S :#: (S => R) = state0(s => (s, f(s)))
 
