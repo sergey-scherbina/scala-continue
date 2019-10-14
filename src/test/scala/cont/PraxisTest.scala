@@ -1,6 +1,7 @@
 package cont
 
-import cont.Cont1._
+import cont.Cont._
+import scala.util.control.TailCalls._
 import org.scalatest.FunSuite
 
 import scala.annotation.tailrec
@@ -11,12 +12,12 @@ class PraxisTest extends FunSuite {
 
     def append[A](xs: List[A]): List[A] => List[A] = {
 
-      def walk: List[A] => Cont[List[A], List[A], List[A] => List[A]] = {
-        case List() => shift0(identity)
+      def walk: List[A] => Cont[List[A], List[A], List[A] =>> List[A]] = {
+        case List() => shift0(done)
         case h :: t => walk(t).map(h :: _)
       }
 
-      reset0(walk(xs))
+      reset0(walk(xs))(_).result
     }
 
     assert {
@@ -29,9 +30,9 @@ class PraxisTest extends FunSuite {
     def prefixes[A](xs: List[A]): List[List[A]] = {
 
       def walk: List[A] => Cont[List[A], List[A], List[List[A]]] = {
-        case List() => shift0(_ => List())
-        case x :: xs => shift0(k => k(List(x)) :: reset0(
-          for (vs <- walk(xs)) yield k(x :: vs)))
+        case List() => shift0(_ => done(List()))
+        case x :: xs => shift0(k => k(List(x)).map(_ ::
+          reset0(walk(xs).map(vs => k(x :: vs).result))))
       }
 
       reset0(walk(xs))
@@ -120,14 +121,15 @@ class PraxisTest extends FunSuite {
     def prefixes4[A](xs: List[A]): List[List[A]] = {
       def visit(xs: List[A]): Cont[List[A], List[A], List[List[A]]] =
         xs match {
-          case List() => ((k: List[A] => List[A]) => List())
-          case y :: ys => ((k: List[A] => List[A]) => {
-            val k1 = (vs: List[A]) => k(y :: vs)
-            k1(Nil) :: visit(ys)(k1)
-          })
+          case List() => shift0((k: List[A] =>> List[A]) => done(List()))
+          case y :: ys =>
+            shift0 { (k: List[A] =>> List[A]) =>
+              val k1: List[A] =>> List[A] = vs => k(y :: vs)
+              k1(Nil).flatMap(as => visit(ys)(k1).map(as :: _))
+            }
         }
 
-      visit(xs)(x => x)
+      visit(xs)(x => done(x)).result
     }
 
     println(prefixes4(List(1, 2, 3, 4)))
@@ -135,10 +137,10 @@ class PraxisTest extends FunSuite {
     def prefixes5[A](xs: List[A]): List[List[A]] = {
       def visit(xs: List[A]): Cont[List[A], List[A], List[List[A]]] =
         xs match {
-          case List() => shift0((k: List[A] => List[A]) => List())
-          case y :: ys => shift0((k: List[A] => List[A]) => {
+          case List() => shift0((k: List[A] =>> List[A]) => done(List()))
+          case y :: ys => shift0((k: List[A] =>> List[A]) => {
             val k1 = (vs: List[A]) => k(y :: vs);
-            k1(Nil) :: visit(ys)(k1)
+            k1(Nil).flatMap(as => visit(ys)(k1).map(as :: _))
           })
         }
 
@@ -150,10 +152,9 @@ class PraxisTest extends FunSuite {
     def prefixes6[A](xs: List[A]): List[List[A]] = {
       def visit(xs: List[A]): Cont[List[A], List[A], List[List[A]]] =
         xs match {
-          case List() => shift0((k: List[A] => List[A]) => List())
-          case y :: ys => k1 =>
-            ((k: List[A] => List[A]) => k(Nil) :: visit(ys)(k)
-              ) ((vs: List[A]) => k1(y :: vs))
+          case List() => shift0((k: List[A] =>> List[A]) => done(List()))
+          case y :: ys => shift0((k: List[A] =>> List[A]) => ((k2: List[A] =>> List[A]) =>
+            k2(Nil).flatMap(as => visit(ys)(k2).map(as :: _))) ((vs: List[A]) => k(y :: vs)))
         }
 
       reset0(visit(xs))
@@ -164,10 +165,9 @@ class PraxisTest extends FunSuite {
     def prefixesM[A](xs: List[A]): List[List[A]] = {
       def visit(xs: List[A]): Cont[List[A], List[A], List[List[A]]] =
         xs match {
-          case List() => shift0((k: List[A] => List[A]) => List())
-          case y :: ys =>
-            shift0((k: List[A] => List[A]) => k(Nil) :: visit(ys)(k))
-              .map((vs: List[A]) => (y :: vs))
+          case List() => shift0((k: List[A] =>> List[A]) => done(List()))
+          case y :: ys => shift0((k: List[A] =>> List[A]) => k(Nil).flatMap(as =>
+            visit(ys)(k).map(as :: _))).map((vs: List[A]) => (y :: vs))
         }
 
       reset0(visit(xs))
@@ -178,10 +178,13 @@ class PraxisTest extends FunSuite {
     def prefixesC[A](xs: List[A]) = {
       def visit[A](lst: List[A]): Cont[List[A], List[A], List[List[A]]] =
         lst match {
-          case List() => shift0(_ => List())
+          case List() => shift0(_ => done(List()))
           case x :: xs => for {
-            vs <- shift0((k: List[A] => List[A]) =>
-              k(Nil) :: visit(xs)(k))
+            vs <- shift0((k: List[A] =>> List[A]) =>
+              for {
+                as <- k(Nil)
+                ys <- visit(xs)(k)
+              } yield as :: ys)
           } yield x :: vs
         }
 
@@ -261,13 +264,13 @@ class PraxisTest extends FunSuite {
   test("same fringe") {
     sealed trait Gen[A]
     case class End[A]() extends Gen[A]
-    case class Next[A](a: A, n: Unit => Gen[A]) extends Gen[A]
+    case class Next[A](a: A, n: Unit =>> Gen[A]) extends Gen[A]
 
     @tailrec
     def same[A](g1: Gen[A], g2: Gen[A]): Boolean = (g1, g2) match {
       case (End(), End()) => true
       case (Next(a1, n1), Next(a2, n2))
-        if (a1 == a2) => same(n1(), n2())
+        if (a1 == a2) => same(n1().result, n2().result)
       case _ => false
     }
 
@@ -285,17 +288,17 @@ class PraxisTest extends FunSuite {
     }
 
     def gen1[A](t: Tree[A]): Gen[A] = {
-      def visit(t: Tree[A])(g: Unit => Gen[A]): Gen[A] = t match {
+      def visit(t: Tree[A])(g: Unit =>> Gen[A]): Gen[A] = t match {
         case Leaf(a) => Next(a, g)
-        case Node(t1, t2) => visit(t1)(_ => visit(t2)(g))
+        case Node(t1, t2) => visit(t1)(_ => done(visit(t2)(g)))
       }
 
-      visit(t)(_ => End())
+      visit(t)(_ => done(End()))
     }
 
     def gen2[A](t: Tree[A]): Gen[A] = {
       def visit(t: Tree[A]): Unit :#: Gen[A] = t match {
-        case Leaf(a) => shift0(Next(a, _))
+        case Leaf(a) => shift0(k => done(Next(a, k)))
         case Node(t1, t2) => visit(t1) >> visit(t2)
       }
 
