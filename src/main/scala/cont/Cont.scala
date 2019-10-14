@@ -1,18 +1,12 @@
 package cont
 
+import cont.Cont1.:#:
+
 import scala.util.control.TailCalls._
 
 object Cont {
-
   type ![A] = TailRec[A]
   type =>>[A, B] = A => ![B]
-  type :#:[A, R] = Cont[A, R, R]
-
-  @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = Cont(done(k))
-  @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
-  @inline final def reset0[A, R](k: Cont[A, A, R]): R = k(done).result
-  @inline final def pure[A, R](a: A): A :#: R = shift0(_ (a))
-
   final case class Cont[A, S, R](cont: ![(A =>> S) =>> R]) extends AnyVal {
     @inline def apply(f: A =>> S): ![R] = cont.flatMap(_ (a => tailcall(f(a))))
     @inline def bind[B, S1](f: A => (B =>> S1) =>> S): Cont[B, S1, R] = shift0(k => apply(f(_)(k)))
@@ -22,13 +16,18 @@ object Cont {
     @inline def >>[B, C](c2: Cont[B, C, S]): Cont[B, C, R] = flatMap(_ => c2)
     @inline def >>>(s: S): Cont[S, S, R] = map(_ => s)
   }
+  @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = Cont(done(k))
+  @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
+  @inline final def reset0[A, R](k: Cont[A, A, R]): R = k(done).result
 
-  implicit class ContLift[A, R](val m: A :#: R) /*extends AnyVal*/ {
+  type :#:[A, R] = Cont[A, R, R]
+  @inline final def pure[A, R](a: A): A :#: R = shift0(_ (a))
+  @inline final def shift1[A, B, R](e: (A =>> (B :#: R)) =>> (B :#: R)): A :#: B :#: R = shift0(e)
+  @inline final def reset1[A, R](m: A :#: A :#: R): A :#: R = m(a => done(pure(a))).result
+  final implicit class ContLift[A, R](/* val */ m: A :#: R) /* extends AnyVal */ {
     @inline def lift[B]: A :#: B :#: R = shift0(k => done(m >>= (k(_).result)))
   }
 
-  @inline def shift1[A, B, R](e: (A =>> (B :#: R)) =>> (B :#: R)): A :#: B :#: R = shift0(e)
-  @inline def reset1[A, R](m: A :#: A :#: R): A :#: R = m(a => done(pure(a))).result
   def loop0[A, B](f: Cont[A, B, A =>> B]): A =>> B = f(loop0(f)).result
   @inline def abort0[A, S, R](r: R): Cont[A, S, R] = shift(_ => r)
   @inline def fail0[A, S]: Cont[A, S, Unit] = abort0()
@@ -70,28 +69,19 @@ object Cont {
   }
 
   implicit object ListReflection extends Reflection[List] {
-    @inline override def reflect0[A, B](m: List[A]): A :#: List[B] =
-      shift0(k => done(m.flatMap(k(_).result)))
-    @inline override def reify0[A](m: A :#: List[A]): List[A] =
-      m(a => done(List(a))).result
-    @inline override def reflect1[A, B, R](m: List[A]): A :#: List[B] :#: List[R] =
-      shift1(k1 => done(shift0(k2 => done(m.flatMap(k1(_).result(k2).result)))))
-    @inline override def reify1[A, R](m: A :#: List[A] :#: R): List[A] :#: R =
-      m(a => done(pure(List(a)))).result
+    @inline override def reflect0[A, B](m: List[A]): A :#: List[B] = shift0(k => done(m.flatMap(k(_).result)))
+    @inline override def reify0[A](m: A :#: List[A]): List[A] = m(a => done(List(a))).result
+    @inline override def reflect1[A, B, R](m: List[A]): A :#: List[B] :#: List[R] = shift1(k1 => done(shift0(k2 =>
+      done(m.flatMap(k1(_).result(k2).result)))))
+    @inline override def reify1[A, R](m: A :#: List[A] :#: R): List[A] :#: R = m(a => done(pure(List(a)))).result
   }
 
   implicit object StreamReflection extends Reflection[Stream] {
-    @inline override def reflect0[A, B](m: Stream[A]): A :#: Stream[B] =
-      shift0(k => done(m.flatMap(k(_).result)))
-
-    @inline override def reify0[A](m: A :#: Stream[A]): Stream[A] =
-      m(a => done(Stream(a))).result
-
-    @inline def reflect1[A, B, R](m: Stream[A]): A :#: Stream[B] :#: Stream[R] =
-      shift1(k1 => done(shift0(k2 => done(m.flatMap(k1(_).result(k2).result)))))
-
-    @inline override def reify1[A, R](m: A :#: Stream[A] :#: R): Stream[A] :#: R =
-      m(a => done(pure(Stream(a)))).result
+    @inline override def reflect0[A, B](m: Stream[A]): A :#: Stream[B] = shift0(k => done(m.flatMap(k(_).result)))
+    @inline override def reify0[A](m: A :#: Stream[A]): Stream[A] = m(a => done(Stream(a))).result
+    @inline def reflect1[A, B, R](m: Stream[A]): A :#: Stream[B] :#: Stream[R] = shift1(k1 => done(shift0(k2 =>
+      done(m.flatMap(k1(_).result(k2).result)))))
+    @inline override def reify1[A, R](m: A :#: Stream[A] :#: R): Stream[A] :#: R = m(a => done(pure(Stream(a)))).result
   }
 
   //  @inline def project0[A, B, C](fa: A :#: B)(br: B => C)(rb: C => B): A :#: C =
@@ -102,22 +92,15 @@ object Cont {
 
   @inline def pair0[A, B, R](a1: A, a2: A): (A, A) :#: B =
     for (x <- return0[A, B](a1); y <- return0[A, B](a1)) yield (x, y)
-
   @inline def pair1[A, B, R](a1: A, a2: A): (A, A) :#: B :#: R =
     for (x <- return1[A, B, R](a1); y <- return1[A, B, R](a1)) yield (x, y)
 
   @inline def state0[A, S, R](f: S => (A, S)): A :#: (S => R) =
     shift0(k => done(s => (k(_: A).result(_: S)).tupled(f(s))))
-
-  @inline def runState[S, R](e: R :#: (S => R)): S => R =
-    e(k => done(_ => k)).result
-
+  @inline def runState[S, R](e: R :#: (S => R)): S => R = e(k => done(_ => k)).result
   @inline def access0[A, S, R](f: S => S): S :#: (S => R) = state0(s => (s, f(s)))
-
   @inline def get0[S, R]: S :#: (S => R) = access0(identity)
-
   @inline def set0[S, R](s: S): Unit :#: (S => R) = state0(s => ((), s))
-
   @inline def increase0[R]: Int :#: (Int => R) = access0(_ + 1)
 
 }
