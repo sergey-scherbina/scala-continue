@@ -28,61 +28,36 @@ object Cont {
   }
 
   @inline def shift1[A, B, R](e: (A =>> (B :#: R)) =>> (B :#: R)): A :#: B :#: R = shift0(e)
-
   @inline def reset1[A, R](m: A :#: A :#: R): A :#: R = m(a => done(pure(a))).result
-
   def loop0[A, B](f: Cont[A, B, A =>> B]): A =>> B = f(loop0(f)).result
-
   @inline def abort0[A, S, R](r: R): Cont[A, S, R] = shift(_ => r)
-
   @inline def fail0[A, S]: Cont[A, S, Unit] = abort0()
-
   @inline def amb0[A, S](a: A, b: A): Cont[A, S, Unit] = shift0 { k => k(a); k(b); done() }
-
   @inline def flip0[S]: Cont[Boolean, S, Unit] = amb0[Boolean, S](true, false)
-
   @inline def return0[A, B](a: A): A :#: B = pure(a)
-
   @inline def return1[A, B, R](a: A): A :#: B :#: R = pure[A, R](a).lift[B]
-
   @inline def abort1[A, B, R](b: B): A :#: B :#: R = shift1(_ => done(pure(b)))
-
   @inline def fail1[A, R]: A :#: Unit :#: R = abort1()
-
   @inline def amb1[A, R](a1: A, a2: A): A :#: Unit :#: R = shift1(k => for {_ <- k(a1); _ <- k(a2)} yield pure())
-
   @inline def flip1[R]: Boolean :#: Unit :#: R = amb1[Boolean, R](true, false)
-
   @inline def emit0[A](a: A): Unit :#: List[A] = shift0(_ ().map(a :: _))
-
   @inline def emit1[A, R](a: A): Unit :#: List[A] :#: R = shift1(k => for (as <- k()) yield as.map(a :: _))
-
   @inline def collect0[A](m: Unit :#: List[A]): List[A] = reset0(for (_ <- m) yield List[A]())
-
   @inline def collect1[A, R](m: Unit :#: List[A] :#: R): List[A] :#: R = reset1(for (_ <- m) yield List())
-
   @inline def emitS0[A](a: A): Unit :#: Stream[A] = shift0(_ ().map(a #:: _))
-
   @inline def emitS1[A, R](a: A): Unit :#: Stream[A] :#: R = shift1(k => for (as <- k()) yield as.map(a #:: _))
-
   @inline def collectS0[A](m: Unit :#: Stream[A]): Stream[A] = reset0(for (_ <- m) yield Stream[A]())
-
   @inline def collectS1[A, R](m: Unit :#: Stream[A] :#: R): Stream[A] :#: R = reset1(for (_ <- m) yield Stream())
 
   trait Reflection[F[_]] {
     def reflect0[A, B](m: F[A]): A :#: F[B]
-
     def reflect1[A, B, R](m: F[A]): A :#: F[B] :#: F[R]
-
     def reify0[A](m: A :#: F[A]): F[A]
-
     def reify1[A, R](m: A :#: F[A] :#: R): F[A] :#: R
-
   }
 
   implicit class Reflect0[A, F[_] : Reflection](m: F[A]) {
     def reflect0[B]: A :#: F[B] = implicitly[Reflection[F]].reflect0(m)
-
     def reflect1[B, R](m: F[A]): A :#: F[B] :#: F[R] = implicitly[Reflection[F]].reflect1(m)
   }
 
@@ -97,14 +72,10 @@ object Cont {
   implicit object ListReflection extends Reflection[List] {
     @inline override def reflect0[A, B](m: List[A]): A :#: List[B] =
       shift0(k => done(m.flatMap(k(_).result)))
-
     @inline override def reify0[A](m: A :#: List[A]): List[A] =
       m(a => done(List(a))).result
-
     @inline override def reflect1[A, B, R](m: List[A]): A :#: List[B] :#: List[R] =
-      ???
-    //shift1(k1 => shift0(k2 => m.flatMap(k1(_)(k2))))
-
+      shift1(k1 => done(shift0(k2 => done(m.flatMap(k1(_).result(k2).result)))))
     @inline override def reify1[A, R](m: A :#: List[A] :#: R): List[A] :#: R =
       m(a => done(pure(List(a)))).result
   }
@@ -117,8 +88,7 @@ object Cont {
       m(a => done(Stream(a))).result
 
     @inline def reflect1[A, B, R](m: Stream[A]): A :#: Stream[B] :#: Stream[R] =
-      ???
-    //  shift1(k1 => shift0(k2 => m.flatMap(k1(_)(k2))))
+      shift1(k1 => done(shift0(k2 => done(m.flatMap(k1(_).result(k2).result)))))
 
     @inline override def reify1[A, R](m: A :#: Stream[A] :#: R): Stream[A] :#: R =
       m(a => done(pure(Stream(a)))).result
@@ -137,10 +107,7 @@ object Cont {
     for (x <- return1[A, B, R](a1); y <- return1[A, B, R](a1)) yield (x, y)
 
   @inline def state0[A, S, R](f: S => (A, S)): A :#: (S => R) =
-  //    shift0(k => s => Function.uncurried(k).tupled(f(s)))
-    shift0(k => done(s => f(s) match {
-      case (a, s1) => k(a).result(s1)
-    }))
+    shift0(k => done(s => (k(_: A).result(_: S)).tupled(f(s))))
 
   @inline def runState[S, R](e: R :#: (S => R)): S => R =
     e(k => done(_ => k)).result
