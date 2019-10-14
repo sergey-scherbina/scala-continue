@@ -1,6 +1,6 @@
 package cont
 
-import cont.Cont._
+import cont.Cont1._
 import org.scalatest.FunSuite
 
 class ReflectTest extends FunSuite {
