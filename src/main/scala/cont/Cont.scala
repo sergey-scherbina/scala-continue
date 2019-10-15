@@ -1,22 +1,19 @@
 package cont
 
-import cont.Cont1.:#:
-
 import scala.util.control.TailCalls._
 
 object Cont {
-  type ![A] = TailRec[A]
-  type =>>[A, B] = A => ![B]
-  final case class Cont[A, S, R](cont: ![(A =>> S) =>> R]) extends AnyVal {
-    @inline def apply(f: A =>> S): ![R] = cont.flatMap(_ (a => tailcall(f(a))))
-    @inline def bind[B, S1](f: A => (B =>> S1) =>> S): Cont[B, S1, R] = shift0(k => apply(f(_)(k)))
+  type =>>[A, B] = A => TailRec[B]
+  final case class Cont[A, S, R](cont: (A =>> S) =>> R) extends AnyVal {
+    @inline def apply(f: A =>> S): TailRec[R] = cont(a => tailcall(f(a)))
+    @inline def bind[B, S1](f: A => (B =>> S1) =>> S): Cont[B, S1, R] = Cont(k => apply(f(_)(k)))
     @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] = bind(a => f(a)(_))
     @inline def map[B](f: A => B): Cont[B, S, R] = bind(a => _ (f(a)))
     @inline def >>=[B, C](f: A => Cont[B, C, S]): Cont[B, C, R] = flatMap(f)
     @inline def >>[B, C](c2: Cont[B, C, S]): Cont[B, C, R] = flatMap(_ => c2)
     @inline def >>>(s: S): Cont[S, S, R] = map(_ => s)
   }
-  @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = Cont(done(k))
+  @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = Cont(k)
   @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
   @inline final def reset0[A, R](k: Cont[A, A, R]): R = k(done).result
 
