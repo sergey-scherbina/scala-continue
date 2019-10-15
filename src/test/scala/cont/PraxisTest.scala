@@ -125,11 +125,11 @@ class PraxisTest extends FunSuite {
           case y :: ys =>
             shift0 { (k: List[A] =>> List[A]) =>
               val k1: List[A] =>> List[A] = vs => k(y :: vs)
-              k1(Nil).flatMap(as => visit(ys)(k1).map(as :: _))
+              k1(Nil).flatMap(as => visit(ys).run(k1).map(as :: _))
             }
         }
 
-      visit(xs)(x => done(x)).result
+      visit(xs).run(x => done(x)).result
     }
 
     println(prefixes4(List(1, 2, 3, 4)))
@@ -140,7 +140,7 @@ class PraxisTest extends FunSuite {
           case List() => shift0((k: List[A] =>> List[A]) => done(List()))
           case y :: ys => shift0((k: List[A] =>> List[A]) => {
             val k1 = (vs: List[A]) => k(y :: vs);
-            k1(Nil).flatMap(as => visit(ys)(k1).map(as :: _))
+            k1(Nil).flatMap(as => visit(ys).run(k1).map(as :: _))
           })
         }
 
@@ -154,7 +154,7 @@ class PraxisTest extends FunSuite {
         xs match {
           case List() => shift0((k: List[A] =>> List[A]) => done(List()))
           case y :: ys => shift0((k: List[A] =>> List[A]) => ((k2: List[A] =>> List[A]) =>
-            k2(Nil).flatMap(as => visit(ys)(k2).map(as :: _))) ((vs: List[A]) => k(y :: vs)))
+            k2(Nil).flatMap(as => visit(ys).run(k2).map(as :: _))) ((vs: List[A]) => k(y :: vs)))
         }
 
       reset0(visit(xs))
@@ -167,7 +167,7 @@ class PraxisTest extends FunSuite {
         xs match {
           case List() => shift0((k: List[A] =>> List[A]) => done(List()))
           case y :: ys => shift0((k: List[A] =>> List[A]) => k(Nil).flatMap(as =>
-            visit(ys)(k).map(as :: _))).map((vs: List[A]) => (y :: vs))
+            visit(ys).run(k).map(as :: _))).map((vs: List[A]) => (y :: vs))
         }
 
       reset0(visit(xs))
@@ -183,7 +183,7 @@ class PraxisTest extends FunSuite {
             vs <- shift0((k: List[A] =>> List[A]) =>
               for {
                 as <- k(Nil)
-                ys <- visit(xs)(k)
+                ys <- visit(xs).run(k)
               } yield as :: ys)
           } yield x :: vs
         }

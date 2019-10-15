@@ -11,18 +11,21 @@ object Pipes {
   type PipeCont[I, O] = InCont[I] => OutCont[O] =>> Unit
   type Pipe[I, O, A] = A :#: PipeCont[I, O]
 
-  @inline def input[I, O]: Pipe[I, O, I] = shift0(k => done(ki => ko =>
-    ki(OutCont(i => k1 => tailcall(k(i).flatMap(_ (k1)(ko)))))))
+  @inline def input[I, O]: Pipe[I, O, I] = shift0(k =>
+    done((ki: InCont[I]) => (ko: OutCont[O]) =>
+      ki(OutCont(i => k1 => tailcall(k(i).flatMap(_ (k1)(ko)))))))
 
-  @inline def output[I, O](o: O): Pipe[I, O, Unit] = shift0(k => done(ki => ko =>
-    ko(o)(InCont(k1 => tailcall(k().flatMap(_ (ki)(k1)))))))
+  @inline def output[I, O](o: O): Pipe[I, O, Unit] = shift0(k =>
+    done((ki: InCont[I]) => (ko: OutCont[O]) =>
+      ko(o)(InCont(k1 => tailcall(k().flatMap(_ (ki)(k1)))))))
 
   @inline def merge[I, O, M, A](p: Pipe[I, M, A], q: Pipe[M, O, A]): Pipe[I, O, A] =
-    shift0(_ => done(ki => ko => q(_ => ???).flatMap(_ (InCont(k1 =>
-      p(_ => ???).flatMap(_ (ki)(k1))))(ko))))
+    shift0(_ => done((ki: InCont[I]) => (ko: OutCont[O]) =>
+      q.run(_ => ???).flatMap(_ (InCont(k1 =>
+        p.run(_ => ???).flatMap(_ (ki)(k1))))(ko))))
 
   @inline def runPipe[I, O, A](p: Pipe[I, O, A]): PipeCont[I, O] =
-    ki => ko => p(_ => done(_ => _ => done())).flatMap(_ (ki)(ko))
+    ki => ko => p.run(_ => done(_ => _ => done())).flatMap(_ (ki)(ko))
 
   def runPipeIO[I, O](p: Pipe[I, O, Unit])(read: => Option[I]): Unit = {
     lazy val ki: InCont[I] = InCont(k => read.fold(done())(k(_)(ki)))

@@ -6,6 +6,7 @@ import org.scalatest.FunSuite
 
 import scala.util.Try
 import cont.Pipes._
+import cont.Cont._
 
 class PipesTest extends FunSuite {
 
