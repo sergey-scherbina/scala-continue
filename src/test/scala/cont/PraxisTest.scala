@@ -12,17 +12,19 @@ class PraxisTest extends FunSuite {
 
     def append[A](xs: List[A]): List[A] => List[A] = {
 
-      def walk: List[A] => Cont[List[A], List[A], List[A] =>> List[A]] = {
-        case List() => shift0(done)
-        case h :: t => walk(t).map(h :: _)
+      def walk: List[A] =>> Cont[List[A], List[A], List[A] =>> List[A]] = {
+        case List() => done(shift0(done))
+        case h :: t => tailcall(walk(t).map(_.map(h :: _)))
       }
 
-      reset0(walk(xs))(_).result
+      reset(walk(xs).result)(_).result
     }
 
     assert {
       append(List(1, 2, 3, 4))(List(5, 6, 7, 8)) === List(1, 2, 3, 4, 5, 6, 7, 8)
     }
+
+    append((1 to 10000).toList)(List(1, 2, 3))
   }
 
   test("prefixes") {
@@ -32,10 +34,10 @@ class PraxisTest extends FunSuite {
       def walk: List[A] => Cont[List[A], List[A], List[List[A]]] = {
         case List() => shift0(_ => done(List()))
         case x :: xs => shift0(k => k(List(x)).map(_ ::
-          reset0(walk(xs).map(vs => k(x :: vs).result))))
+          reset(walk(xs).map(vs => k(x :: vs).result))))
       }
 
-      reset0(walk(xs))
+      reset(walk(xs))
     }
 
     assert {
@@ -144,7 +146,7 @@ class PraxisTest extends FunSuite {
           })
         }
 
-      reset0(visit(xs))
+      reset(visit(xs))
     }
 
     println(prefixes5(List(1, 2, 3, 4)))
@@ -157,7 +159,7 @@ class PraxisTest extends FunSuite {
             k2(Nil).flatMap(as => visit(ys).run(k2).map(as :: _))) ((vs: List[A]) => k(y :: vs)))
         }
 
-      reset0(visit(xs))
+      reset(visit(xs))
     }
 
     println(prefixes6(List(1, 2, 3, 4)))
@@ -170,7 +172,7 @@ class PraxisTest extends FunSuite {
             visit(ys).run(k).map(as :: _))).map((vs: List[A]) => (y :: vs))
         }
 
-      reset0(visit(xs))
+      reset(visit(xs))
     }
 
     println(prefixesM(List(1, 2, 3, 4)))
@@ -302,7 +304,7 @@ class PraxisTest extends FunSuite {
         case Node(t1, t2) => visit(t1) >> visit(t2)
       }
 
-      reset0(visit(t) >>> End[A]())
+      reset(visit(t) >>> End[A]())
     }
 
     val t1 = Node(Node(Leaf(1), Leaf(2)), Leaf(3))
