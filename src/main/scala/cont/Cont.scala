@@ -10,8 +10,8 @@ object Cont {
 
   final implicit class ContMonad[A, S, R](val c: (A =>> S) =>> R) extends AnyVal {
     @inline def run(f: A =>> S): TailRec[R] = tailcall(c(a => tailcall(f(a))))
-    @inline def map[B](f: A => B): Cont[B, S, R] = (k => (run(a => tailcall(k(f(a))))))
-    @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] = (k => (run(a => tailcall(f(a)(k)))))
+    @inline def map[B](f: A => B): Cont[B, S, R] = (k => run(a => tailcall(k(f(a)))))
+    @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] = (k => run(a => tailcall(f(a)(k))))
     @inline def >>=[B, C](f: A => Cont[B, C, S]): Cont[B, C, R] = flatMap(f)
     @inline def >>[B, C](c2: Cont[B, C, S]): Cont[B, C, R] = flatMap(_ => c2)
     @inline def >>>(s: S): Cont[S, S, R] = map(_ => s)
@@ -21,7 +21,7 @@ object Cont {
     @inline def lift[B]: A :#: B :#: R = (k => done(c >>= (k(_).result)))
   }
 
-  @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = (a => tailcall(k(a)))
+  @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = k
   @inline final def reset0[A, R](k: Cont[A, A, R]): TailRec[R] = k.run(done)
   @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
   @inline final def reset[A, R](k: Cont[A, A, R]): R = reset0(k).result
