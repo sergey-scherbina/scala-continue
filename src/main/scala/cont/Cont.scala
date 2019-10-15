@@ -22,12 +22,11 @@ object Cont {
 
   @inline final def shift0[A, S, R](k: (A =>> S) =>> R): Cont[A, S, R] = k
   @inline final def reset0[A, R](k: Cont[A, A, R]): TailRec[R] = k(done)
-  @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
-  @inline final def reset[A, R](k: Cont[A, A, R]): R = reset0(k).result
   @inline final def shift1[A, B, R](e: (A =>> (B :#: R)) =>> (B :#: R)): A :#: B :#: R = shift0(e)
   @inline final def reset1[A, R](m: A :#: A :#: R): A :#: R = m(a => done(pure(a))).result
   @inline final def pure[A, R](a: A): A :#: R = shift0(_ (a))
-  @inline def pure1[A, B, R](a: A): A :#: B :#: R = pure[A, R](a).lift[B]
+  @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
+  @inline final def reset[A, R](k: Cont[A, A, R]): R = reset0(k).result
   final def loop0[A, B](f: Cont[A, B, A =>> B]): A =>> B = f(loop0(f)).result
   @inline def abort0[A, S, R](r: R): Cont[A, S, R] = shift(_ => r)
   @inline def fail0[A, S]: Cont[A, S, Unit] = abort0()
@@ -46,7 +45,8 @@ object Cont {
   @inline def collectS0[A](m: Unit :#: Stream[A]): Stream[A] = reset(for (_ <- m) yield Stream[A]())
   @inline def collectS1[A, R](m: Unit :#: Stream[A] :#: R): Stream[A] :#: R = reset1(for (_ <- m) yield Stream())
   @inline def pair0[A, B](a1: A, a2: A): (A, A) :#: B = for (x <- pure[A, B](a1); y <- pure[A, B](a1)) yield (x, y)
-  @inline def pair1[A, B, R](a1: A, a2: A): (A, A) :#: B :#: R = pair0[A, R](a1, a2).lift[B]
+  @inline def pro0[A, B, C](fa: A :#: B)(br: B => C)(rb: C => B): A :#: C =
+    shift((k: A => C) => br(fa(a => done(rb(k(a)))).result))
   @inline def state0[A, S, R](f: S => (A, S)): A :#: (S => R) =
     shift0(k => done((s: S) => (k(_: A).result(_: S)).tupled(f(s))))
   @inline def runState[S, R](e: R :#: (S => R)): S => R = e(k => done(_ => k)).result
@@ -54,12 +54,6 @@ object Cont {
   @inline def get0[S, R]: S :#: (S => R) = access0(identity)
   @inline def set0[S, R](s: S): Unit :#: (S => R) = state0(s => ((), s))
   @inline def increase0[R]: Int :#: (Int => R) = access0(_ + 1)
-
-  //  @inline def project0[A, B, C](fa: A :#: B)(br: B => C)(rb: C => B): A :#: C =
-  //    shift0((k: A => C) => br(fa(a => rb(k(a)))))
-  //
-  //  @inline def project1[A, B, C](fa: A :#: B)(f1: B => C)(f2: C => B): A :#: B :#: C =
-  //    project0[A, B, B :#: C](fa)(pure)(k2 => f2(k2(f1)))
 
   trait Reflection[F[_]] {
     def reflect0[A, B](m: F[A]): A :#: F[B]
