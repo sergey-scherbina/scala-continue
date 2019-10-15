@@ -21,11 +21,11 @@ object Pipes {
 
   @inline def merge[I, O, M, A](p: Pipe[I, M, A], q: Pipe[M, O, A]): Pipe[I, O, A] =
     shift0(_ => done((ki: InCont[I]) => (ko: OutCont[O]) =>
-      q.run(_ => ???).flatMap(_ (InCont(k1 =>
-        p.run(_ => ???).flatMap(_ (ki)(k1))))(ko))))
+      q(_ => ???).flatMap(_ (InCont(k1 =>
+        p(_ => ???).flatMap(_ (ki)(k1))))(ko))))
 
   @inline def runPipe[I, O, A](p: Pipe[I, O, A]): PipeCont[I, O] =
-    ki => ko => p.run(_ => done(_ => _ => done())).flatMap(_ (ki)(ko))
+    ki => ko => p(_ => done(_ => _ => done())).flatMap(_ (ki)(ko))
 
   def runPipeIO[I, O](p: Pipe[I, O, Unit])(read: => Option[I]): Unit = {
     lazy val ki: InCont[I] = InCont(k => read.fold(done())(k(_)(ki)))
