@@ -9,8 +9,9 @@ object Cont {
   type :#:[A, R] = Cont[A, R, R]
 
   final implicit class ContMonad[A, S, R](val c: (A =>> S) =>> R) extends AnyVal {
-    @inline def map[B](f: A => B): Cont[B, S, R] = k => tailcall(c(a => tailcall(k(f(a)))))
-    @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] = k => tailcall(c(a => tailcall(f(a)(k))))
+    @inline def run(f: A =>> S): TailRec[R] = tailcall(c(a => tailcall(f(a))))
+    @inline def map[B](f: A => B): Cont[B, S, R] = k => run(a => k(f(a)))
+    @inline def flatMap[B, S1](f: A => Cont[B, S1, S]): Cont[B, S1, R] = k => run(f(_)(k))
     @inline def >>=[B, C](f: A => Cont[B, C, S]): Cont[B, C, R] = flatMap(f)
     @inline def >>[B, C](c2: Cont[B, C, S]): Cont[B, C, R] = flatMap(_ => c2)
     @inline def >>>(s: S): Cont[S, S, R] = map(_ => s)
