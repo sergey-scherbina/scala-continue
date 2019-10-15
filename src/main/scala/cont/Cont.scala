@@ -27,7 +27,9 @@ object Cont {
   @inline final def pure[A, R](a: A): A :#: R = shift0(_ (a))
   @inline final def shift[A, S, R](f: (A => S) => R): Cont[A, S, R] = shift0(k => done(f(k(_).result)))
   @inline final def reset[A, R](k: Cont[A, A, R]): R = reset0(k).result
-  final def loop0[A, B](f: Cont[A, B, A =>> B]): A =>> B = f(loop0(f)).result
+  @inline def take0[A, B]: Cont[A, B, A =>> B] = shift0(done(_))
+  final def loop0[A, B](f: Cont[A, B, A =>> B]): A =>> B = f(a => tailcall(loop0(f)(a))).result
+  @inline def put0[A](a: A): Cont[A, LazyList[A], LazyList[A]] = shift(a #:: _ (a))
   @inline def abort0[A, S, R](r: R): Cont[A, S, R] = shift(_ => r)
   @inline def fail0[A, S]: Cont[A, S, Unit] = abort0()
   @inline def amb0[A, S](a: A, b: A): Cont[A, S, Unit] = shift0 { k => k(a); k(b); done() }

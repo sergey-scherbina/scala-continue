@@ -315,4 +315,14 @@ class PraxisTest extends FunSuite {
 
   }
 
+  test("nat") {
+    def nat(n: Int): LazyList[Int] =
+      loop0(for {
+        x <- take0[Int, LazyList[Int]]
+        _ <- put0(x)
+      } yield x + 1)(n).result
+
+    assert(nat(10).take(10000).length == 10000)
+  }
+
 }
