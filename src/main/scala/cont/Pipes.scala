@@ -6,9 +6,9 @@ import scala.util.control.TailCalls._
 object Pipes {
 
   trait InCont[I] extends (OutCont[I] =>> Unit)
-  @inline def InCont[I](k: OutCont[I] =>> Unit): InCont[I] = k(_)
+  @inline def InCont[I](k: InCont[I]): InCont[I] = k
   trait OutCont[O] extends (O => InCont[O] =>> Unit)
-  @inline def OutCont[O](k: O => InCont[O] =>> Unit): OutCont[O] = k(_)
+  @inline def OutCont[O](k: OutCont[O]): OutCont[O] = k
   type PipeCont[I, O] = InCont[I] => OutCont[O] =>> Unit
   type Pipe[I, O, A] = A :#: PipeCont[I, O]
 
@@ -20,7 +20,7 @@ object Pipes {
 
   @inline def merge[I, O, M, A](p: Pipe[I, M, A], q: Pipe[M, O, A]): Pipe[I, O, A] =
     shift(_ => ki => ko => q(_ => ???).flatMap(_ (InCont(k1 => p(_ => ???)
-        .flatMap(_ (ki)(k1))))(ko)))
+      .flatMap(_ (ki)(k1))))(ko)))
 
   @inline def runPipe[I, O, A](p: Pipe[I, O, A]): PipeCont[I, O] =
     ki => ko => p(_ => done(_ => _ => done())).flatMap(_ (ki)(ko))
