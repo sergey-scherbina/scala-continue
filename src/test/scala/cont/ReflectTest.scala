@@ -4,29 +4,52 @@ import cont.Cont1._
 import org.scalatest.FunSuite
 
 class ReflectTest extends FunSuite {
-  test("union") {
+  test("union1") {
 
-    trait in[A, B]
+    trait in[A, B] {
+      def proj(b: B): Option[A]
+      def inj(a: A): B
+    }
     object in {
-      implicit def inLeft[A, B]: (A in (A Either B)) = null
-      implicit def inRight[A, B]: (A in (B Either A)) = null
-      implicit def inLeftRec[A, B, C](implicit r: A in B): (A in (B Either C)) = null
-      implicit def inRightRec[A, B, C](implicit r: A in C): (A in (B Either C)) = null
+      implicit def inLeft[A, B]: (A in (A Either B)) = new (A in (A Either B)) {
+        override def proj(b: Either[A, B]): Option[A] = b.fold(Some(_), _ => None)
+        override def inj(a: A): Either[A, B] = Left(a)
+      }
+      implicit def inRight[A, B]: (A in (B Either A)) = new (A in (B Either A)) {
+        override def proj(b: Either[B, A]): Option[A] = b.fold(_ => None, Some(_))
+        override def inj(a: A): Either[B, A] = Right(a)
+      }
+      implicit def inLeftRec[A, B, C](implicit r: A in B): (A in (B Either C)) = new (A in (B Either C)) {
+        override def proj(b: Either[B, C]): Option[A] = b.fold(r.proj, _ => None)
+        override def inj(a: A): Either[B, C] = Left(r.inj(a))
+      }
+      implicit def inRightRec[A, B, C](implicit r: A in C): (A in (B Either C)) = new (A in (B Either C)) {
+        override def proj(b: Either[B, C]): Option[A] = b.fold(_ => None, r.proj)
+        override def inj(a: A): Either[B, C] = Right(r.inj(a))
+      }
+    }
+
+    type In[B] = {type is[A] = A in B}
+    object In {
+      def apply[B] = new {
+        def apply[A: In[B]#is]: (A in B) = implicitly[A in B]
+      }
     }
 
     type |[A, B] = Either[A, B]
+    type All = String | Int | Boolean | Float
 
-    def test1(implicit q: (Boolean in (String | Int | Boolean | Float))) = "test1"
+    def test1[T: In[All]#is](a: T): T = a
 
-    def test2(implicit q: (Char in (String | Int | Boolean | Float))) = "test2"
+    println(test1(true))
+    println(In[All][Boolean].inj(true))
 
-    println(test1)
-    //println(test2)
+    //println(In[All][Char].to('a'))
+    // println(test1('a'))
 
   }
 
   test("reflect list") {
-
 
     @inline def reflect01[A, B, R](m: List[A] :#: R): (A :#: List[B]) :#: R = m.map(reflect0[A, B])
 
