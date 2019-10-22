@@ -4,6 +4,27 @@ import cont.Cont1._
 import org.scalatest.FunSuite
 
 class ReflectTest extends FunSuite {
+  test("union") {
+
+    trait in[A, B]
+    object in {
+      implicit def inLeft[A, B]: (A in (A Either B)) = null
+      implicit def inRight[A, B]: (A in (B Either A)) = null
+      implicit def inLeftRec[A, B, C](implicit r: A in B): (A in (B Either C)) = null
+      implicit def inRightRec[A, B, C](implicit r: A in C): (A in (B Either C)) = null
+    }
+
+    type |[A, B] = Either[A, B]
+
+    def test1(implicit q: (Boolean in (String | Int | Boolean | Float))) = "test1"
+
+    def test2(implicit q: (Char in (String | Int | Boolean | Float))) = "test2"
+
+    println(test1)
+    //println(test2)
+
+  }
+
   test("reflect list") {
 
 
@@ -58,7 +79,7 @@ class ReflectTest extends FunSuite {
       x + 10))
 
     println(f1())
-    assert( f1() === 121)
+    assert(f1() === 121)
 
     /*
     ⟨1 + ⟨10 × S0k1.S0k2.k1 (k2 0)⟩⟩
@@ -70,7 +91,7 @@ class ReflectTest extends FunSuite {
     }
 
     println(f2())
-    assert( f2() === 10)
+    assert(f2() === 10)
 
     def f3() = {
       fmap(fmap(shift0((k1: Int => Int) => shift0((k2: Int => Int) => k1(k2(0)))))(_ * 10))(_ + 1)

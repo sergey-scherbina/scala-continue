@@ -27,7 +27,10 @@ object Pipes {
 
   def runPipeIO[I, O](p: Pipe[I, O, Unit])(read: => Option[I]): Unit = {
     lazy val ki: InCont[I] = InCont(k => read.fold(done())(k(_)(ki)))
-    lazy val ko: OutCont[O] = OutCont { o => k => println(o); k(ko) }
+    lazy val ko: OutCont[O] = OutCont { o => k =>
+      println(o);
+      k(ko)
+    }
     runPipe(p)(ki)(ko).result
   }
 }
