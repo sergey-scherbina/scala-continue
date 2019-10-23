@@ -5,83 +5,38 @@ import org.scalatest.FunSuite
 
 class ReflectTest extends FunSuite {
   test("union1") {
-
-    sealed trait in[A, B] {
-      type Tail
-      def proj(b: B): Option[A]
+    trait in[A, B] {
       def inj(a: A): B
-      def decomp(b: B): Either[Tail, A] = proj(b)
-        .fold(Left(b.asInstanceOf[Tail]): Either[Tail, A])(Right(_))
     }
-
     object in {
-      implicit def emptyIn[A]: (Unit in A) = new (Unit in A) {
-        override type Tail = Unit
-        override def proj(b: A): Option[Unit] = None
-        override def inj(a: Unit): A = ???
-      }
-      implicit def inSelf[A]: (A in A) = new (A in A) {
-        override type Tail = Unit
-        override def proj(b: A): Option[A] = Some(b)
-        override def inj(a: A): A = a
-      }
-      implicit def inLeft[A, B]: (A in (A Either B)) = new (A in (A Either B)) {
-        override type Tail = B
-        override def proj(b: Either[A, B]): Option[A] = b.fold(Some(_), _ => None)
-        override def inj(a: A): Either[A, B] = Left(a)
-      }
-      implicit def inRight[A, B]: (A in (B Either A)) = new (A in (B Either A)) {
-        override type Tail = B
-        override def proj(b: Either[B, A]): Option[A] = b.fold(_ => None, Some(_))
-        override def inj(a: A): Either[B, A] = Right(a)
-      }
-      implicit def inLeftRec[A, B, C](implicit r: A in B): (A in (B Either C)) = new (A in (B Either C)) {
-        override type Tail = Either[r.Tail, C]
-        override def proj(b: Either[B, C]): Option[A] = b.fold(r.proj, _ => None)
-        override def inj(a: A): Either[B, C] = Left(r.inj(a))
-      }
-      implicit def inRightRec[A, B, C](implicit r: A in C): (A in (B Either C)) = new (A in (B Either C)) {
-        override type Tail = Either[B, r.Tail]
-        override def proj(b: Either[B, C]): Option[A] = b.fold(_ => None, r.proj)
-        override def inj(a: A): Either[B, C] = Right(r.inj(a))
-      }
+      implicit def inSelf[A]: (A in A) = (a: A) => a
+      implicit def inHead[A, B]: (A in (A Either B)) = (a: A) => Left(a)
+      implicit def inRight[A, B, C](implicit r: (A in C)): (A in (B Either C)) =
+        (a: A) => Right(r.inj(a))
+      implicit def inLeft[A, B, C](implicit r: (A in B)): (A in (B Either C)) =
+        (a: A) => Left(r.inj(a))
     }
 
-    type In[B] = {type is[A] = A in B}
-    object In {
-      def apply[B] = new {
-        def apply[A: In[B]#is]: (A in B) = implicitly[A in B]
-      }
+    def inj[B] = new {
+      def apply[A](a: A)(implicit r: (A in B)): B = r.inj(a)
     }
 
-    type |[A, B] = Either[A, B]
-    type All = String | Int | Boolean | Float
+    def handle[A, B, C](a: (A Either B))(f: A => C): Option[B] =
+      a.fold(a => Function.const(None)(f(a)), Some(_))
 
-    def test1[T: In[All]#is](a: T): T = a
+    type :|:[A, B] = Either[A, B]
+    type All = String :|: Int :|: Boolean :|: Double
 
-    def handle[B, A: In[B]#is](b: B)(f: A => Unit): Option[(A in B)#Tail] =
-      In[B][A].decomp(b).fold(Some(_), a => {
-        f(a);
-        Option.empty[(A in B)#Tail]
-      })
+    def handleAll[A](a: A)(implicit r: (A in All)) =
+      handle(inj(a))(x => println(x + " : String"))
+        .flatMap(handle(_)(x => println(x + " : Int")))
+        .flatMap(handle(_)(x => println(x + " : Boolean")))
+        .map(x => println(x + " : Double"))
 
-//    def handleAll(a: All) =
-//      handle(a)(println(_: String))
-//        .flatMap(handle(_)(println(_: Int)))
-//        .flatMap(handle(_)(println(_: Boolean)))
-//        .flatMap(handle(_)(println(_: Float)))
-
-    println(test1(true))
-
-    println(In[All][Boolean].inj(true))
-    println(In[All][Boolean].decomp(In[All][String].inj("hello")))
-    println(In[All][Boolean].decomp(In[All][Boolean].inj(true)))
-
-    //println(In[All][Char].to('a'))
-    // println(test1('a'))
-    // println(In[All][Char].decomp(In[All][Boolean].inj(true)))
-    // println(In[All][Boolean].decomp(In[All][Char].inj('a')))
-
+    handleAll("a")
+    handleAll(1)
+    handleAll(true)
+    handleAll(1.0)
   }
 
   test("reflect list") {
