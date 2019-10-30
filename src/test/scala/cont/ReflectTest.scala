@@ -1,11 +1,45 @@
 package cont
 
-import cont.Cont._
+import cont.Cont1._
 import org.scalatest.FunSuite
 
 class ReflectTest extends FunSuite {
-  test("reflect list") {
+  test("union1") {
+    trait in[A, B] {
+      def inj(a: A): B
+    }
+    object in {
+      implicit def inSelf[A]: (A in A) = (a: A) => a
+      implicit def inHead[A, B]: (A in (A Either B)) = (a: A) => Left(a)
+      implicit def inRight[A, B, C](implicit r: (A in C)): (A in (B Either C)) =
+        (a: A) => Right(r.inj(a))
+      implicit def inLeft[A, B, C](implicit r: (A in B)): (A in (B Either C)) =
+        (a: A) => Left(r.inj(a))
+    }
 
+    def inj[B] = new {
+      def apply[A](a: A)(implicit r: (A in B)): B = r.inj(a)
+    }
+
+    def handle[A, B, C](a: (A Either B))(f: A => C): Option[B] =
+      a.fold(a => Function.const(None)(f(a)), Some(_))
+
+    type :|:[A, B] = Either[A, B]
+    type All = String :|: Int :|: Boolean :|: Double
+
+    def handleAll[A](a: A)(implicit r: (A in All)) =
+      handle(inj(a))(x => println(x + " : String"))
+        .flatMap(handle(_)(x => println(x + " : Int")))
+        .flatMap(handle(_)(x => println(x + " : Boolean")))
+        .map(x => println(x + " : Double"))
+
+    handleAll("a")
+    handleAll(1)
+    handleAll(true)
+    handleAll(1.0)
+  }
+
+  test("reflect list") {
 
     @inline def reflect01[A, B, R](m: List[A] :#: R): (A :#: List[B]) :#: R = m.map(reflect0[A, B])
 
@@ -58,7 +92,7 @@ class ReflectTest extends FunSuite {
       x + 10))
 
     println(f1())
-    assert( f1() === 121)
+    assert(f1() === 121)
 
     /*
     ⟨1 + ⟨10 × S0k1.S0k2.k1 (k2 0)⟩⟩
@@ -70,7 +104,7 @@ class ReflectTest extends FunSuite {
     }
 
     println(f2())
-    assert( f2() === 10)
+    assert(f2() === 10)
 
     def f3() = {
       fmap(fmap(shift0((k1: Int => Int) => shift0((k2: Int => Int) => k1(k2(0)))))(_ * 10))(_ + 1)
