@@ -30,7 +30,7 @@ object Cont {
   @inline final def reset[A, R](k: Cont[A, A, R]): R = reset0(k).result
   @inline def take0[A, B]: Cont[A, B, A =>> B] = shift0(done(_))
   final def loop0[A, B](f: Cont[A, B, A =>> B]): A =>> B = f(a => tailcall(loop0(f)(a))).result
-  @inline def put0[A](a: A): Cont[A, LazyList[A], LazyList[A]] = shift(a #:: _ (a))
+  @inline def put0[A](a: A): Cont[A, Stream[A], Stream[A]] = shift(a #:: _ (a))
   @inline def abort0[A, S, R](r: R): Cont[A, S, R] = shift(_ => r)
   @inline def fail0[A, S]: Cont[A, S, Unit] = abort0()
   @inline def amb0[A, S](a: A, b: A): Cont[A, S, Unit] = shift0 { k => k(a); k(b); done() }
@@ -40,11 +40,11 @@ object Cont {
   @inline def amb1[A, R](a1: A, a2: A): A :#: Unit :#: R = shift1(k => for {_ <- k(a1); _ <- k(a2)} yield pure())
   @inline def flip1[R]: Boolean :#: Unit :#: R = amb1[Boolean, R](true, false)
   @inline def emit0[A](a: A): Unit :#: List[A] = shift0(_ ().map(a :: _))
-  @inline def emit1[A, R](a: A): Unit :#: List[A] :#: R = shift1(k => for (as <- k()) yield as.map(a :: _))
+  @inline def emit1[A, R](a: A): Unit :#: List[A] :#: R = shift1(k => for (as <- k(())) yield as.map(a :: _))
   @inline def collect0[A](m: Unit :#: List[A]): List[A] = reset(for (_ <- m) yield List[A]())
   @inline def collect1[A, R](m: Unit :#: List[A] :#: R): List[A] :#: R = reset1(for (_ <- m) yield List())
   @inline def emitS0[A](a: A): Unit :#: Stream[A] = shift0(_ ().map(a #:: _))
-  @inline def emitS1[A, R](a: A): Unit :#: Stream[A] :#: R = shift1(k => for (as <- k()) yield as.map(a #:: _))
+  @inline def emitS1[A, R](a: A): Unit :#: Stream[A] :#: R = shift1(k => for (as <- k(())) yield as.map(a #:: _))
   @inline def collectS0[A](m: Unit :#: Stream[A]): Stream[A] = reset(for (_ <- m) yield Stream[A]())
   @inline def collectS1[A, R](m: Unit :#: Stream[A] :#: R): Stream[A] :#: R = reset1(for (_ <- m) yield Stream())
   @inline def pair0[A, B](a1: A, a2: A): (A, A) :#: B = for (x <- pure[A, B](a1); y <- pure[A, B](a1)) yield (x, y)

@@ -316,9 +316,9 @@ class PraxisTest extends FunSuite {
   }
 
   test("nat") {
-    def nat(n: Int): LazyList[Int] =
+    def nat(n: Int): Stream[Int] =
       loop0(for {
-        x <- take0[Int, LazyList[Int]]
+        x <- take0[Int, Stream[Int]]
         _ <- put0(x)
       } yield x + 1)(n).result
 

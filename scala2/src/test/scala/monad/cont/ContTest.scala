@@ -182,7 +182,7 @@ class ContTest extends FunSuite {
       (y._1, Charset.defaultCharset().decode(y._2).toString)))
 
     val chan = AsynchronousFileChannel
-      .open(Paths.get("src/test/resources/hello.txt"))
+      .open(Paths.get("scala2/src/test/resources/hello.txt"))
 
     reset0 {
       for (x <- readStream(chan, 0, 7)) yield {
@@ -222,7 +222,7 @@ class ContTest extends FunSuite {
       } yield y #:: z
 
     val chan = AsynchronousFileChannel
-      .open(Paths.get("src/test/resources/hello.txt"))
+      .open(Paths.get("scala2/src/test/resources/hello.txt"))
 
     import concurrent.ExecutionContext.Implicits._
 
@@ -267,7 +267,7 @@ class ContTest extends FunSuite {
       .decode(x.flip().asInstanceOf[ByteBuffer]).toString
 
     val chan = AsynchronousFileChannel
-      .open(Paths.get("src/test/resources/hello.txt"))
+      .open(Paths.get("scala2/src/test/resources/hello.txt"))
 
     reset0(for {
       x <- readFile(chan)
