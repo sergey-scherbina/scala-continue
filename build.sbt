@@ -1,4 +1,4 @@
-organization := "sshcherbyna"
+organization := "sergiy.shcherbyna"
 
 name := "scala-continue"
 
