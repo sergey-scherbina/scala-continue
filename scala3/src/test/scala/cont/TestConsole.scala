@@ -2,6 +2,14 @@ package cont
 
 object TestConsole extends App {
 
+  enum Console[A] {
+
+    case Input() extends Console[String]
+
+    case Output(s: String) extends Console[Unit]
+
+  }
+
   enum Console1[A] {
 
     case Input1() extends Console1[String]
@@ -10,39 +18,31 @@ object TestConsole extends App {
 
   }
 
-  enum Console2[A] {
+  import Console._
+  import Console1._
 
-    case Input2() extends Console2[String]
+  val p = process(for {
+    _ <- raise(Output("Enter a:"))
+    a <- raise(Input())
+    _ <- raise(Output1("Enter b:"))
+    b <- raise(Input1())
+    _ <- raise(Output(a ++ b))
+    _ <- raise(Output1("\nExit?[y/n]:"))
+    x <- raise(Input1())
+    _ <- if (x != "y") cont() else abort()
+  } yield ())
 
-    case Output2(s: String) extends Console2[Unit]
-
+  val console0 = handle {
+    case Input() => _ (io.StdIn.readLine())
+    case Output(out) => _ (println(out))
   }
 
-  import Console1._
-  import Console2._
-
-  lazy val console1 = handle {
+  val console1 = handle {
     case Input1() => _ (io.StdIn.readLine())
     case Output1(out) => _ (println(out))
   }
 
-  lazy val console2 = handle {
-    case Input2() => _ (io.StdIn.readLine())
-    case Output2(out) => _ (println(out))
-  }
-
-  lazy val console = console1 compose console2
-  
-  val p = process(for {
-    _ <- raise(Output1("Enter a:"))
-    a <- raise(Input1())
-    _ <- raise(Output2("Enter b:"))
-    b <- raise(Input2())
-    _ <- raise(Output1(a ++ b))
-    _ <- raise(Output2("\nExit?[y/n]:"))
-    x <- raise(Input1())
-    _ <- if (x != "y") cont() else abort()
-  } yield ())
+  val console = console0 compose console1
 
   console(p).result
 

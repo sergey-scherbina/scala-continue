@@ -20,24 +20,37 @@ inline def par[A1, A2] (t: (() => A1, () => A2) ): (A1, A2) = (force (t._1), for
 inline def put[A] (a: A): A :#: LazyList[A] = shift (a #:: _ (a) )
 inline def end[A]: A :#: LazyList[A] = exit (LazyList.empty)
 
+inline def state[A, S, R] (f: S => (A, S) ): A :#: (S => R) = shift (k =>
+s => Function.uncurried (k).tupled (f (s) ) )
+  
+inline def runState[S, R] (e: R :#: (S => R) ): S => R = e (a => _ => a)
+inline def update[S, R] (f: S => S): S :#: (S => R) = state (s => (s, f (s) ) )
+inline def get[S, R]: S :#: (S => R) = update (identity)
+inline def set[S, R] (s: S): Unit :#: (S => R) = state (s => ((), s) )
+inline def increase[R]: Int :#: (Int => R) = update (_ + 1)
+
 type Eff[E[_], A, B] = Req[E, A, B] | B
 
 case class Req[E[_], A, B](eff: E[A], k: A => Eff[E, A, B])
 
-inline def raise[E[_], A, B] (e: E[A] ): A :#: Eff[E, A, B] = shift (Req (e, _: A => Eff[E, A, B] ) )
+inline def raise[E[_], A, B] (e: E[A] ): A :#: Eff[E, A, B] =
+shift (Req (e, _: A => Eff[E, A, B] ) )
 
 type @@[A] = A => TailRec[A]
 
-def handle[E[_], A, B] (h: PartialFunction[E[A], A :#: Eff[E, A, B]] ): @@[Eff[E, A, B]] = _ match {
+def handle[E[_], A, B] (h: PartialFunction[E[A],
+A :#: Eff[E, A, B]] ): @@[Eff[E, A, B]] = _ match {
+
 case Req (eff: E[A], k: (A => Eff[E, A, B] ) ) => h.lift (eff)
 .map (e => tailcall (handle (h) (e (k) ) ) )
 .getOrElse (done (Req (eff, a => handle (h) (k (a) ).result) ) )
-  
+
 case r: TailRec[Eff[E, A, B]] => tailcall (handle (h) (r.result) )
 case b: B => done (b)
 }
 
-inline def process[E[_], A, B] (p: Unit :#: Eff[E, A, B] ): Eff[E, A, B] = loop (for {
+inline def process[E[_], A, B] (p: Unit :#: Eff[E, A, B] ): Eff[E, A, B] =
+loop (for {
 _ <- channel[Unit, Eff[E, A, B]]
 _ <- p
 } yield () ) (() )
