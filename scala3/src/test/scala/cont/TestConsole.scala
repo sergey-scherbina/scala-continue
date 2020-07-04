@@ -27,20 +27,23 @@ object TestConsole extends App {
   }
 
   lazy val console2 = handle {
-    case Input2() => _ (io.StdIn.readLine().reverse)
-    case Output2(out) => _ (println(out.reverse))
+    case Input2() => _ (io.StdIn.readLine())
+    case Output2(out) => _ (println(out))
   }
 
   lazy val console = console1 compose console2
-
-  val e = reset(for {
+  
+  val p = process(for {
     _ <- raise(Output1("Enter a:"))
     a <- raise(Input1())
     _ <- raise(Output2("Enter b:"))
     b <- raise(Input2())
     _ <- raise(Output1(a ++ b))
-  } yield (a, b))
+    _ <- raise(Output2("\nExit?[y/n]:"))
+    x <- raise(Input1())
+    _ <- if (x != "y") cont() else abort()
+  } yield ())
 
-  console(e)
+  console(p).result
 
 }

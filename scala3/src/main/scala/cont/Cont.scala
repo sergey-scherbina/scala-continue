@@ -1,6 +1,7 @@
 package cont
 
 import monad._
+export monad._
 export monad.{given _}
 
 type Cont[R1, R2, A] = (A => R2) => R1
