@@ -21,7 +21,8 @@ object TestConsole extends App {
   import Console._
   import Console1._
 
-  val p = process(for {
+  val p = process_((w: Int) => for {
+    _ <- raise(Output(s"$w"))
     _ <- raise(Output("Enter a:"))
     a <- raise(Input())
     _ <- raise(Output1("Enter b:"))
@@ -30,20 +31,20 @@ object TestConsole extends App {
     _ <- raise(Output1("\nExit?[y/n]:"))
     x <- raise(Input1())
     _ <- if (x != "y") cont() else abort()
-  } yield ())
+  } yield w + 1)
 
-  val console0 = handle {
+  val console0 = handler {
     case Input() => _ (io.StdIn.readLine())
     case Output(out) => _ (println(out))
   }
 
-  val console1 = handle {
+  val console1 = handler {
     case Input1() => _ (io.StdIn.readLine())
     case Output1(out) => _ (println(out))
   }
 
   val console = console0 compose console1
 
-  console(p)
+  console(p(1))
 
 }

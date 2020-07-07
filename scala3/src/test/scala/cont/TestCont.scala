@@ -3,6 +3,8 @@ package cont
 import org.junit.Assert._
 import org.junit.Test
 
+import scala.util.control.TailCalls.TailRec
+
 class TestCont {
 
   @Test def t1(): Unit = {
@@ -34,6 +36,37 @@ class TestCont {
     } yield ())
 
     par(par(par(example1, example2)))
+  }
+
+  @Test def t3(): Unit = {
+    enum Console[A] {
+
+      case Input() extends Console[String]
+
+      case Output(s: String) extends Console[Unit]
+
+    }
+
+    import Console._
+
+    val p = reset(for {
+      _ <- raise(Output("Enter a:"))
+      a <- raise(Input())
+      _ <- raise(Output("Enter b:"))
+      b <- raise(Input())
+      _ <- raise(Output(a ++ b))
+    } yield ())
+
+    val console = handler_ {
+      case ((i: List[String], o: List[String]), Input()) =>
+        ((i.tail, o), _ (i.head))
+      case ((i: List[String], o: List[String]), Output(out)) =>
+        ((i, out :: o), _ (println(out)))
+    }
+
+    assertEquals(((List(), List("Hello,World", "Enter b:", "Enter a:")), ()),
+      console(p)((List("Hello,", "World"), List())))
+
   }
 
 }

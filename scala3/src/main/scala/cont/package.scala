@@ -35,26 +35,33 @@ case class Req[E[_], A, B](eff: E[A], k: A => Eff[E, A, B])
 
 inline def raise[E[_], A, B] (e: E[A] ): A :#: Eff[E, A, B] =
 shift (Req (e, _: A => Eff[E, A, B] ) )
-  
-def handleO[E[_], A, B] (h: E[A] => Option[A :#: Eff[E, A, B]] ): Eff[E, A, B] => Eff[E, A, B] = {
-@annotation.tailrec
-def go (e: Eff[E, A, B] ): Eff[E, A, B] = e match {
-case Req (eff: E[A], k: (A => Eff[E, A, B] ) ) => h (eff) match {
-case Some (e: (A :#: Eff[E, A, B] ) ) => go (e (k) )
-case _ => Req (eff, a => handleO (h) (k (a) ) )
+
+def handler0[E[_], A, B, W] (h: (W, E[A] ) => Option[(W, A :#: Eff[E, A, B] )] )
+: ((W, Eff[E, A, B] ) ) => (W, Eff[E, A, B] ) = {
+
+@annotation.tailrec def go (eff: (W, Eff[E, A, B] ) ): (W, Eff[E, A, B] ) = eff match {
+case (w: W, Req (e: E[A], k: (A => Eff[E, A, B] ) ) ) => h (w, e) match {
+case Some ((w2, e) ) => go (w2, e (k) )
+case _ => (w, Req (e, a => handler0 (h) ((w, k (a) ) )._2) )
 }
-case b: B => b
+case b => b
 }
+
 go
 }
 
-inline def handle[E[_], A, B] (h: PartialFunction[E[A], A :#: Eff[E, A, B]] ): Eff[E, A, B] => Eff[E, A, B] =
-handleO (h.lift)
+inline def handler_[E[_], A, B, W] (h: PartialFunction[(W, E[A] ),
+(W, A :#: Eff[E, A, B] )] ): Eff[E, A, B] => W => (W, Eff[E, A, B] ) =
+eff => w => handler0 (Function.untupled (h.lift) ) ((w, eff) )
 
-inline def process[E[_], A, B] (p: Unit :#: Eff[E, A, B] ): Eff[E, A, B] = processW (_ => p) (() )
+inline def handler[E[_], A, B] (h: PartialFunction[E[A],
+A :#: Eff[E, A, B]] ): Eff[E, A, B] => Eff[E, A, B] =
+eff => handler0 ((w, e: E[A] ) => h.lift (e).map ((w, _) ) ) ((), eff)._2
 
-inline def processW[E[_], A, B, W] (p: W => W :#: Eff[E, A, B] ): W => Eff[E, A, B] =
+inline def process_[E[_], A, B, W] (p: W => W :#: Eff[E, A, B] ): W => Eff[E, A, B] =
 loop (for {
 w <- channel[W, Eff[E, A, B]]
 w <- p (w)
 } yield w)
+
+inline def process[E[_], A, B] (p: Unit :#: Eff[E, A, B] ): Eff[E, A, B] = process_ (_ => p) (() )
