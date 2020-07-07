@@ -22,7 +22,7 @@ inline def end[A]: A :#: LazyList[A] = exit (LazyList.empty)
 
 inline def state[A, S, R] (f: S => (A, S) ): A :#: (S => R) = shift (k =>
 s => Function.uncurried (k).tupled (f (s) ) )
-  
+
 inline def runState[S, R] (e: R :#: (S => R) ): S => R = e (a => _ => a)
 inline def update[S, R] (f: S => S): S :#: (S => R) = state (s => (s, f (s) ) )
 inline def get[S, R]: S :#: (S => R) = update (identity)
@@ -35,22 +35,26 @@ case class Req[E[_], A, B](eff: E[A], k: A => Eff[E, A, B])
 
 inline def raise[E[_], A, B] (e: E[A] ): A :#: Eff[E, A, B] =
 shift (Req (e, _: A => Eff[E, A, B] ) )
-
-type @@[A] = A => TailRec[A]
-
-def handle[E[_], A, B] (h: PartialFunction[E[A],
-A :#: Eff[E, A, B]] ): @@[Eff[E, A, B]] = _ match {
-
-case Req (eff: E[A], k: (A => Eff[E, A, B] ) ) => h.lift (eff)
-.map (e => tailcall (handle (h) (e (k) ) ) )
-.getOrElse (done (Req (eff, a => handle (h) (k (a) ).result) ) )
-
-case r: TailRec[Eff[E, A, B]] => tailcall (handle (h) (r.result) )
-case b: B => done (b)
+  
+def handleO[E[_], A, B] (h: E[A] => Option[A :#: Eff[E, A, B]] ): Eff[E, A, B] => Eff[E, A, B] = {
+@annotation.tailrec
+def go (e: Eff[E, A, B] ): Eff[E, A, B] = e match {
+case Req (eff: E[A], k: (A => Eff[E, A, B] ) ) => h (eff) match {
+case Some (e: (A :#: Eff[E, A, B] ) ) => go (e (k) )
+case _ => Req (eff, a => handleO (h) (k (a) ) )
+}
+case b: B => b
+}
+go
 }
 
-inline def process[E[_], A, B] (p: Unit :#: Eff[E, A, B] ): Eff[E, A, B] =
+inline def handle[E[_], A, B] (h: PartialFunction[E[A], A :#: Eff[E, A, B]] ): Eff[E, A, B] => Eff[E, A, B] =
+handleO (h.lift)
+
+inline def process[E[_], A, B] (p: Unit :#: Eff[E, A, B] ): Eff[E, A, B] = processW (_ => p) (() )
+
+inline def processW[E[_], A, B, W] (p: W => W :#: Eff[E, A, B] ): W => Eff[E, A, B] =
 loop (for {
-_ <- channel[Unit, Eff[E, A, B]]
-_ <- p
-} yield () ) (() )
+w <- channel[W, Eff[E, A, B]]
+w <- p (w)
+} yield w)

@@ -44,6 +44,6 @@ object TestConsole extends App {
 
   val console = console0 compose console1
 
-  console(p).result
+  console(p)
 
 }
