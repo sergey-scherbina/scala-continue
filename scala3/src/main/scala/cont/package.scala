@@ -1,7 +1,6 @@
 package cont
 
 import scala.language.implicitConversions
-import util.control.TailCalls._
 
 type :#:[A, R] = Cont[R, R, A]
 
