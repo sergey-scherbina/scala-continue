@@ -2,17 +2,17 @@ package cont
 
 import scala.language.implicitConversions
 
-type :#:[A, R] = Cont[R, R, A]
+type :#:[A, B] = Cont[A, B, B]
 
 inline def exit[A, B, R] (r: R) = shift ((k: A => B) => r)
 inline def abort[A, B] () = exit[A, B, Unit] (() )
 inline def pass[A, R] (a: A): A :#: R = shift ((k: A => R) => k (a) )
 inline def cont[R] (): Unit :#: R = pass (() )
 
-inline def channel[A, B]: Cont[A => B, B, A] = shift ((k: A => B) => k)
-def loop[A, B] (f: Cont[A => B, B, A] ): A => B = f (loop (f) ) (_)
+inline def channel[A, B]: Cont[A, B, A => B] = shift ((k: A => B) => k)
+def loop[A, B] (f: Cont[A, B, A => B] ): A => B = f (loop (f) ) (_)
 
-@inline def delay[A, B] (a: => A): Cont[() => B, B, A] = shift ((k: A => B) => () => k (a) )
+@inline def delay[A, B] (a: => A): Cont[A, B, () => B] = shift ((k: A => B) => () => k (a) )
 inline def force[A] (a: () => A): A = a ()
 inline def par[A1, A2] (t: (() => A1, () => A2) ): (A1, A2) = (force (t._1), force (t._2) )
 

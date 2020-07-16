@@ -4,24 +4,24 @@ import monad._
 export monad._
 export monad.{given _}
 
-type Cont[R1, R2, A] = (A => R2) => R1
+type Cont[A, B, C] = (A => B) => C
 
-inline def shift[A, B, R] (c: (A => B) => R): Cont[R, B, A] = c
-inline def[A, B, R] (c: Cont[R, B, A] ) $: (A => B) => R = c
-inline def reset[A, R] (c: Cont[R, A, A] ): R = c $ identity
+inline def shift[A, B, C] (c: (A => B) => C): Cont[A, B, C] = c
+inline def[A, B, C] (c: Cont[A, B, C] ) $: (A => B) => C = c
+inline def reset[A, B] (c: Cont[A, A, B] ): B = c $ identity
 
 given PMonad[Cont] {
-  inline override def pure[R, A](a: A): Cont[R, R, A] = _ (a)
+  inline override def pure[A, B](a: A): Cont[A, B, B] = _ (a)
 
-  inline override def flatMap[R1, R2, R3, A, B]
-  (m: Cont[R1, R2, A])(f: A => Cont[R2, R3, B]): Cont[R1, R3, B] = k => m(f(_)(k))
+  inline override def flatMap[A, B, C1, C2, C3]
+  (m: Cont[A, C2, C3])(f: A => Cont[B, C1, C2]): Cont[B, C1, C3] = k => m(f(_)(k))
 
-  inline override def map[R1, R2, A, B]
-  (m: Cont[R1, R2, A])(f: A => B): Cont[R1, R2, B] = k => m(k compose f)
+  inline override def map[A, B, C1, C2]
+  (m: Cont[A, C1, C2])(f: A => B): Cont[B, C1, C2] = k => m(k compose f)
 
-  inline override def flatten[R1, R2, R3, A]
-  (m: Cont[R1, R2, Cont[R2, R3, A]]): Cont[R1, R3, A] = k => m(_ (k))
+  inline override def flatten[A, C1, C2, C3]
+  (m: Cont[Cont[A, C1, C2], C2, C3]): Cont[A, C1, C3] = k => m(_ (k))
 }
 
-inline def[R1, R2, A] (f: Cont[R1, R2, A] )
-withFilter (p: A => Boolean): Cont[R1, R2, A] = f
+inline def[A, B1, B2] (f: Cont[A, B1, B2] )
+withFilter (p: A => Boolean): Cont[A, B1, B2] = f
