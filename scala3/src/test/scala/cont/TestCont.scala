@@ -57,7 +57,7 @@ class TestCont {
       _ <- raise(Output(a ++ b))
     } yield ())
 
-    val console = handler_ {
+    val console = stateHandler {
       case ((i: List[String], o: List[String]), Input()) =>
         ((i.tail, o), _ (i.head))
       case ((i: List[String], o: List[String]), Output(out)) =>
@@ -66,6 +66,46 @@ class TestCont {
 
     assertEquals(((List(), List("Hello,World", "Enter b:", "Enter a:")), ()),
       console(p)((List("Hello,", "World"), List())))
+
+  }
+
+  @Test def t4(): Unit = {
+
+    enum In[A] {
+
+      case Input() extends In[String]
+
+    }
+
+    enum Out[A] {
+
+      case Output(s: String) extends Out[Unit]
+
+    }
+
+    def input[A]: Raise[In, String, A] = raise(In.Input())
+
+    def output[A](s: String): Raise[Out, Unit, A] = raise(Out.Output(s))
+
+    val in = handler {
+      case In.Input() => _ ("in")
+    }
+
+    val out = handler {
+      case Out.Output(s) => _ (println(s))
+    }
+
+    val io = out compose in
+
+    val ex1
+    : Eff[In, String, Eff[Out, Unit, Unit]]
+    = reset(for (a <- input; _ <- output(a)) yield ())
+
+    val ex2
+    : Eff[In, String, Eff[Out, Unit, Eff[In, String, String]]]
+    = reset(for (a <- input; _ <- output(a); b <- input) yield b)
+
+    println(io(ex2))
 
   }
 

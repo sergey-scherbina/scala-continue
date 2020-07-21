@@ -28,14 +28,14 @@ inline def get[S, R]: S :#: (S => R) = update (identity)
 inline def set[S, R] (s: S): Unit :#: (S => R) = state (s => ((), s) )
 inline def increase[R]: Int :#: (Int => R) = update (_ + 1)
 
-type Eff[E[_], A, B] = Req[E, A, B] | B
+case class Req[E[_], A, B](eff: E[A], k: A => B | Req[E, _, B])
 
-case class Req[E[_], A, B](eff: E[A], k: A => Eff[E, A, B])
+type Eff[E[_], A, B] = B | Req[E, A, B]
+type Raise[E[_], A, B] = A :#: Eff[E, A, B]
 
-inline def raise[E[_], A, B] (e: E[A] ): A :#: Eff[E, A, B] =
-shift (Req (e, _: A => Eff[E, A, B] ) )
+inline def raise[E[_], A, B] (e: E[A] ): Raise[E, A, B] = shift (Req (e, _) )
 
-def handler0[E[_], A, B, W] (h: (W, E[A] ) => Option[(W, A :#: Eff[E, A, B] )] )
+def handler0[E[_], A, B, W] (h: (W, E[A] ) => Option[(W, Raise[E, A, B] )] )
 : ((W, Eff[E, A, B] ) ) => (W, Eff[E, A, B] ) = {
 
 @annotation.tailrec def go (eff: (W, Eff[E, A, B] ) ): (W, Eff[E, A, B] ) = eff match {
@@ -49,12 +49,11 @@ case b => b
 go
 }
 
-inline def handler_[E[_], A, B, W] (h: PartialFunction[(W, E[A] ),
-(W, A :#: Eff[E, A, B] )] ): Eff[E, A, B] => W => (W, Eff[E, A, B] ) =
+inline def stateHandler[E[_], A, B, W] (h: PartialFunction[(W, E[A] ),
+(W, Raise[E, A, B] )] ): Eff[E, A, B] => W => (W, Eff[E, A, B] ) =
 eff => w => handler0 (Function.untupled (h.lift) ) ((w, eff) )
 
-inline def handler[E[_], A, B] (h: PartialFunction[E[A],
-A :#: Eff[E, A, B]] ): Eff[E, A, B] => Eff[E, A, B] =
+inline def handler[E[_], A, B] (h: PartialFunction[E[A], Raise[E, A, B]] ): Eff[E, A, B] => Eff[E, A, B] =
 eff => handler0 ((w, e: E[A] ) => h.lift (e).map ((w, _) ) ) ((), eff)._2
 
 inline def process_[E[_], A, B, W] (p: W => W :#: Eff[E, A, B] ): W => Eff[E, A, B] =
