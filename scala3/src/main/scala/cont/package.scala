@@ -7,7 +7,7 @@ type :#:[A, B] = Cont[A, B, B]
 inline def exit[A, B, R] (r: R) = shift ((k: A => B) => r)
 inline def abort[A, B] () = exit[A, B, Unit] (() )
 inline def pass[A, R] (a: A): A :#: R = shift ((k: A => R) => k (a) )
-inline def cont[R] (): Unit :#: R = pass (() )
+inline def continue[R] (): Unit :#: R = pass (() )
 
 inline def channel[A, B]: Cont[A, B, A => B] = shift ((k: A => B) => k)
 def loop[A, B] (f: Cont[A, B, A => B] ): A => B = f (loop (f) ) (_)
@@ -28,12 +28,15 @@ inline def get[S, R]: S :#: (S => R) = update (identity)
 inline def set[S, R] (s: S): Unit :#: (S => R) = state (s => ((), s) )
 inline def increase[R]: Int :#: (Int => R) = update (_ + 1)
 
-case class Req[E[_], A, B](eff: E[A], k: A => B | Req[E, _, B])
+case class Req[E[_], A, B](eff: E[A], k: A => B | Req[_, _, B])
 
 type Eff[E[_], A, B] = B | Req[E, A, B]
 type Raise[E[_], A, B] = A :#: Eff[E, A, B]
+type :|:[E[_], F[_]] =[A] =>> E[A] | F[A]
 
 inline def raise[E[_], A, B] (e: E[A] ): Raise[E, A, B] = shift (Req (e, _) )
+
+type EffHandler[E[_], A, B, W] = (W, Eff[E, A, B] ) => (W, Eff[E, A, B] )
 
 def handler0[E[_], A, B, W] (h: (W, E[A] ) => Option[(W, Raise[E, A, B] )] )
 : ((W, Eff[E, A, B] ) ) => (W, Eff[E, A, B] ) = {
@@ -49,9 +52,12 @@ case b => b
 go
 }
 
+def[E[_], A, B, W] (h1: EffHandler[E, A, B, W] ) :|: (h2: EffHandler[E, A, B, W] ): EffHandler[E, A, B, W] =
+Function.untupled (Function.tupled (h1).compose (Function.tupled (h2) ) )
+
 inline def stateHandler[E[_], A, B, W] (h: PartialFunction[(W, E[A] ),
-(W, Raise[E, A, B] )] ): Eff[E, A, B] => W => (W, Eff[E, A, B] ) =
-eff => w => handler0 (Function.untupled (h.lift) ) ((w, eff) )
+(W, Raise[E, A, B] )] ): EffHandler[E, A, B, W] = (w, eff) =>
+handler0 (Function.untupled (h.lift) ) ((w, eff) )
 
 inline def handler[E[_], A, B] (h: PartialFunction[E[A], Raise[E, A, B]] ): Eff[E, A, B] => Eff[E, A, B] =
 eff => handler0 ((w, e: E[A] ) => h.lift (e).map ((w, _) ) ) ((), eff)._2

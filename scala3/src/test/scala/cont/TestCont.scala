@@ -65,7 +65,7 @@ class TestCont {
     }
 
     assertEquals(((List(), List("Hello,World", "Enter b:", "Enter a:")), ()),
-      console(p)((List("Hello,", "World"), List())))
+      console((List("Hello,", "World"), List()), p))
 
   }
 
@@ -87,15 +87,19 @@ class TestCont {
 
     def output[A](s: String): Raise[Out, Unit, A] = raise(Out.Output(s))
 
-    val in = handler {
-      case In.Input() => _ ("in")
+    val in = stateHandler[In :|: Out, String, Any, List[String]] {
+      case (w: List[String], In.Input()) => 
+        println("IINN")
+        ("IN" :: w, _ ("in"))
     }
 
-    val out = handler {
-      case Out.Output(s) => _ (println(s))
+    val out = stateHandler[In :|: Out, Unit, Any, List[String]] {
+      case (w: List[String], Out.Output(s)) =>
+        println("OUUTT")
+        ("OUT " + s :: w, _ (println(s)))
     }
 
-    val io = out compose in
+    val io = out :|: in
 
     val ex1
     : Eff[In, String, Eff[Out, Unit, Unit]]
@@ -105,7 +109,7 @@ class TestCont {
     : Eff[In, String, Eff[Out, Unit, Eff[In, String, String]]]
     = reset(for (a <- input; _ <- output(a); b <- input) yield b)
 
-    println(io(ex2))
+    println(io(List[String]("*"), ex2))
 
   }
 

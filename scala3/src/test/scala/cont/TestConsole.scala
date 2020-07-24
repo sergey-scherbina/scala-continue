@@ -30,7 +30,7 @@ object TestConsole extends App {
     _ <- raise(Output(a ++ b))
     _ <- raise(Output1("\nExit?[y/n]:"))
     x <- raise(Input1())
-    _ <- if (x != "y") cont() else abort()
+    _ <- if (x != "y") continue() else abort()
   } yield w + 1)
 
   val console0 = handler {
