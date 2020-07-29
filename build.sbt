@@ -11,7 +11,7 @@ lazy val scala2 = (project in file("scala2")).settings(
 )
 
 lazy val scala3 = (project in file("scala3")).settings(
-  scalaVersion := "0.25.0-RC2",
+  scalaVersion := "0.26.0-RC1",
   libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % "test"
 )
 
